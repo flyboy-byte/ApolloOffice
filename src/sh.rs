@@ -346,6 +346,10 @@ fn sshv(h: &Ho) -> Vec<String> {
             v.extend(["-o".into(), "ControlMaster=auto".into(), "-o".into(), format!("ControlPath={}/.ssh/cm-ao-%r@%h:%p", d.display()), "-o".into(), "ControlPersist=10m".into()]);
         }
     }
+    if h.id.starts_with(crate::cloud::PRE) {
+        // Fork: rented boxes' host keys are pinned at creation in a separate file (cloud.rs).
+        v.extend(["-o".into(), format!("UserKnownHostsFile=~/.ssh/known_hosts {}", crate::cloud::KH)]);
+    }
     v.push(h.ssh.clone());
     v
 }

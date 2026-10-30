@@ -1,6 +1,21 @@
 # Ephemeral cloud build hosts (fork-only scope)
 
-Status: **Scoped, not started** (2026-10-29). Fork `flyboy-byte/ApolloOffice`; not planned for upstream
+Status: **Built, never run against Linode** (2026-10-30). Nothing has been created; the first real box needs Logan's go.
+
+As built (2026-10-30): `src/cloud.rs`. Off unless settings `cloud.on` and `LINODE_TOKEN` in the office's environment.
+- Guards before every create: allowed types (default `g6-standard-8`), 10..=60 min, 1 box at a time, 4 a day (settings
+  `cloud.max`, `cloud.max_min`, `cloud.day`, `cloud.types`).
+- Create: `linode/ubuntu24.04`, tags `apollo-office` + `ao-exp-<unix>`, Logan's `~/.ssh/id_ed25519.pub`, a fresh ed25519 host
+  key injected by cloud-init and pinned first in `~/.ssh/ao_cloud_known_hosts` (`sshv` reads it for `lin-*` machines
+  only; no `accept-new`), cloud-init: `shutdown -h +(min+15)` (L4), docker.io + docker-compose-v2, then `cloud/up.sh`.
+  A task waits for cloud-init and the `apollo-office` container, then adds machine `lin-<id>` (Docker, 1 lane).
+- `cloud::watch` (L1): 5 min before expiry the machine is switched off (drain); deleted once no job runs on it, or 10 min
+  past expiry regardless. L2: every ~10 min, any `apollo-office` box past its tag + 15 min is deleted even if untracked.
+- `cloud/reaper.py` (L3) for the VPS cron, dry run unless `--apply`; tested against a fake API.
+- API `/v1/cloud` and `ao boxes | rent MIN [--type --region --repo] | unrent ID`.
+- NOT built: problem 1 below (a job waiting for approval loses its work when its box goes; the office logs it). Not
+  verified: `docker-compose-v2` package name on Ubuntu 24.04, Linode `metadata.user_data` on that image, IPv4 field
+  shape (all INFERRED from docs, check on the first box). L3 isn't deployed (needs the VPS + a Linode token there). Fork `flyboy-byte/ApolloOffice`; not planned for upstream
 unless it turns out unusually good. No instance has been created yet; the first real one waits for Logan's go
 (it costs money).
 

@@ -603,6 +603,23 @@ async fn v1(a: &Ax, m: &Method, p: &str, q: &str, hd: &HeaderMap, b: Body) -> Re
             crate::focus::add(a, id, v["only"].as_bool().unwrap_or(false));
             js(json!({"ok": true, "id": id, "st": a.db.jg(id).map(|j| j.st), "brief": j.d["brief"].is_string()}))
         }
+        // Fork: rented build boxes (src/cloud.rs).
+        ("GET", "/v1/cloud") => js(crate::cloud::list(a)),
+        ("POST", "/v1/cloud") => {
+            let Ok(by) = to_bytes(b, 1 << 16).await else { return er(StatusCode::PAYLOAD_TOO_LARGE, "body too large") };
+            let Ok(v) = serde_json::from_slice::<Value>(&by) else { return er(StatusCode::BAD_REQUEST, "body must be JSON") };
+            match v["op"].as_str().unwrap_or("") {
+                "rent" => match crate::cloud::rent(a, v["minutes"].as_i64().unwrap_or(30), v["type"].as_str().unwrap_or("g6-standard-8"), v["region"].as_str().unwrap_or("us-west"), v["repo"].as_str().unwrap_or("")).await {
+                    Ok(b) => js(b),
+                    Err(e) => er(StatusCode::BAD_REQUEST, &e),
+                },
+                "kill" => {
+                    crate::cloud::kill(a, v["id"].as_i64().unwrap_or(0));
+                    js(json!({"ok": true}))
+                }
+                _ => er(StatusCode::BAD_REQUEST, "op must be rent or kill"),
+            }
+        }
         ("GET", "/v1/repos") => js(json!(a.db.all("select full from rp where on_=1 order by full", pa![]).iter().filter_map(|x| x["full"].as_str().map(String::from)).collect::<Vec<_>>())),
         _ => er(StatusCode::NOT_FOUND, "unknown endpoint"),
     }

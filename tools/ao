@@ -85,6 +85,14 @@ def main():
     f.add_argument("--brief")
     f.add_argument("--clear", action="store_true")
     sp.add_parser("repos", help="repositories the office works on")
+    sp.add_parser("boxes", help="rented cloud build boxes")
+    r = sp.add_parser("rent", help="rent a Linode build box (costs money; spend guards apply)")
+    r.add_argument("minutes", type=int)
+    r.add_argument("--type", default="g6-standard-8")
+    r.add_argument("--region", default="us-west")
+    r.add_argument("--repo", default="", help="public owner/repo to clone and warm up on the box")
+    u = sp.add_parser("unrent", help="drain and delete a rented box now")
+    u.add_argument("id", type=int, help="Linode id from ao boxes")
     a = p.parse_args()
 
     if a.cmd == "status":
@@ -92,6 +100,12 @@ def main():
         print(json.dumps(st, indent=1)) if a.json else show(st)
     elif a.cmd == "repos":
         print("\n".join(call("GET", "/v1/repos")))
+    elif a.cmd == "boxes":
+        print(json.dumps(call("GET", "/v1/cloud"), indent=1))
+    elif a.cmd == "rent":
+        print(json.dumps(call("POST", "/v1/cloud", {"op": "rent", "minutes": a.minutes, "type": a.type, "region": a.region, "repo": a.repo})))
+    elif a.cmd == "unrent":
+        print(json.dumps(call("POST", "/v1/cloud", {"op": "kill", "id": a.id})))
     elif a.cmd in ("point", "focus"):
         body = {"only": a.only}
         if getattr(a, "brief", None):

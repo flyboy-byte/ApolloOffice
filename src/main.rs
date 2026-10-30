@@ -1,6 +1,7 @@
 mod ai;
 mod app;
 mod budget;
+mod cloud;
 mod db;
 mod focus;
 mod gh;
@@ -116,6 +117,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(wk::watch(ax.clone()));
     tokio::spawn(know::curate(ax.clone()));
     tokio::spawn(budget::watch(ax.clone()));
+    tokio::spawn(cloud::watch(ax.clone()));
     if !a.quiet {
         println!("\n  ApolloOffice {}\n\n  Open {}\n\n  Data: {}\n  Stop with Ctrl+C\n", app::V, url(&ax.db, a.port), dd.display());
     }

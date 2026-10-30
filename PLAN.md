@@ -48,7 +48,10 @@ build order); the lines below are the summary.
   skip list (e.g. `kernel-paused`) before Vet.
 
 ### 3. Ephemeral cloud build hosts + dead-man switch
-Scoped in `docs/cloud-hosts.md`. Not started. First real instance needs Logan's OK (money).
+BUILT 2026-10-30, never run against Linode (`docs/cloud-hosts.md` status block): `src/cloud.rs`, `cloud/` (up.sh, compose,
+Dockerfile, reaper.py), manual image workflow, `ao rent/boxes/unrent`. Off by default. First real box needs Logan's go
+(money), the compose plugin locally for a dry run, and the reaper on the VPS. Approval-state work on a box is still lost
+when it goes (problem 1).
 
 ### 4. Manager (steer in plain words; focus "only this one tonight")
 - ~~Focus, `ao` CLI, `apollo-office` skill~~ BUILT 2026-10-30 (see `docs/manager.md`). Briefs from Logan's sessions ride
