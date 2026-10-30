@@ -6,11 +6,11 @@ Living state doc. Detail for the last session: `HANDOFF.md`. SolidCraft-specific
 `~/projects/oss/projects/solidcraft/apollo-office-handoff.md` (local).
 
 ## Current reality
-- Fork `flyboy-byte/ApolloOffice`: `main` = upstream `5dbafee` + `CLAUDE.md` + `docs/cloud-hosts.md` + usage meter
+- Fork `flyboy-byte/ApolloOffice`: `main` = upstream 0.8.2 (`f5f9f9f`, merged 2026-10-30, tests green, pushed) + `CLAUDE.md` + `docs/cloud-hosts.md` + usage meter
   (cherry-picked from `AJMakesStuff`, authorship kept). Pushed 2026-10-29. Tests passed (54 unit + 2 e2e) before the merge
   commit; the merged tree itself was not re-tested.
 - Non-Docker safety on `main` (2026-10-30): thread caps (7d656e6) and a memory/CPU systemd scope per script with OOM →
-  drop-with-reason (f8a9533). Tests green (54 + 2; e2e uses a direct machine). Not yet run on a real job. `main` not pushed.
+  drop-with-reason (f8a9533). Tests green (54 + 2; e2e uses a direct machine). Not yet run on a real job. Pushed 2026-10-30.
   Release binary rebuilt with both (2026-10-30).
 - Office data: `~/.local/share/apollo-office` (backup `office.db.bak-2026-10-30`). One repo: `tangency-labs/solidcraft`,
   approval required, hunt off, test command `SOLIDCRAFT_TEST_JOBS=2 cargo xtask ci`. Machine `local`, **no Docker**, 1 lane.
