@@ -359,6 +359,24 @@ fn jobs(a: &App, h: &Ho) -> String {
     format!("export CARGO_BUILD_JOBS={j} RUST_TEST_THREADS={j} MAKEFLAGS=-j{j} CMAKE_BUILD_PARALLEL_LEVEL={j}\nrenice -n 19 $$ >/dev/null 2>&1; ionice -c 3 -p $$ >/dev/null 2>&1\n")
 }
 
+/// Memory per script on a direct machine: RAM minus a reserve for the desktop (3 G or a quarter), split across lanes.
+pub fn memcap(total: i64, n: i64) -> i64 {
+    ((total - (total / 4).max(3072)) / n.max(1)).max(2048)
+}
+
+/// On a direct Linux machine whose user systemd can cap memory, each script runs in its own scope: (prefix, unit, MB).
+fn scope(a: &App, h: &Ho) -> Option<(String, String, i64)> {
+    if h.dk || !a.db.kg(&format!("scope:{}", h.id)).as_bool().unwrap_or(false) {
+        return None;
+    }
+    let m = a.db.kg(&format!("mem:{}", h.id)).as_i64().filter(|m| *m > 0)?;
+    let c = a.db.kg(&format!("cpu:{}", h.id)).as_i64().unwrap_or(0) / h.ln.max(1);
+    let id: String = h.id.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).collect();
+    let u = format!("ao-{id}-{}", hex::encode(rand::random::<[u8; 4]>()));
+    let q = if c > 0 { format!(" -p CPUQuota={}%", c * 100) } else { String::new() };
+    Some((format!("systemd-run --user --scope --quiet --unit={u} -p MemoryMax={m}M -p MemorySwapMax=0 -p OOMPolicy=kill{q}"), u, m))
+}
+
 pub async fn hraw(h: &Ho, s: &str, t: u64) -> Out {
     let i = format!("{PRE}{s}");
     if h.ssh.is_empty() {
@@ -385,6 +403,10 @@ async fn hxo(a: &App, id: &str, s: &str, t: u64, ln: Option<&(dyn Fn(&str) + Sen
     // active everywhere, including Windows/macOS without GNU coreutils timeout.
     let boundary=format!("APOLLO_JOB_{}",hex::encode(rand::random::<[u8;16]>()));
     let body=format!("if command -v timeout >/dev/null 2>&1 && timeout --version 2>/dev/null | head -n 1 | grep -q 'coreutils'; then exec timeout -k 5 {t}s bash -s; else exec bash -s; fi <<'{boundary}'\n{PRE}{s}\n{boundary}\n");
+    let body = match scope(a, &h) {
+        Some((sc, u, m)) => format!("if command -v timeout >/dev/null 2>&1 && timeout --version 2>/dev/null | head -n 1 | grep -q 'coreutils'; then {sc} timeout -k 5 {t}s bash -s; else {sc} bash -s; fi <<'{boundary}'\n{PRE}{s}\n{boundary}\ne=$?\nif [ $e = 137 ] && [ \"$(systemctl --user show -p Result --value {u}.scope 2>/dev/null)\" = oom-kill ]; then echo \"[oom {m}MB]\"; fi\nsystemctl --user reset-failed {u}.scope >/dev/null 2>&1\nexit $e\n"),
+        None => body,
+    };
     let i = format!("{PRE}{}{body}", jobs(a, &h));
     let mut command: Vec<String> = if h.dk { vec!["docker".into(), "exec".into(), "-i".into(), CT.into()] } else { vec![] };
     command.extend(["bash".into(), "-s".into()]);
@@ -444,11 +466,22 @@ pub async fn ensure(a: &Ax, id: &str) -> Result<(), String> {
     let Some(h) = ho(a, id) else { return Err("unknown machine".into()) };
     let n = hraw(&h, "getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || echo 4", 30).await.o.trim().parse::<i64>().unwrap_or(4);
     let cpu = if h.cpu > 0 { h.cpu.min(n) } else { (n - 1).max(1) };
-    // Direct machines get the same thread caps and low priority as Docker ones; there is no memory cap here.
+    // Direct machines get the same thread caps and low priority as Docker ones, plus a memory scope where systemd allows it.
     a.db.ks(&format!("cpu:{id}"), &serde_json::json!(cpu));
     if !h.dk {
-        let r = hraw(&h, &format!("mkdir -p \"{}\" && git --version >/dev/null && echo ok", hb(a, &h)), 60).await;
-        return if r.c == 0 { Ok(()) } else { Err(format!("{}{}", r.o, r.e).trim().chars().take(300).collect()) };
+        let r = hraw(&h, &format!("mkdir -p \"{}\" && git --version >/dev/null || exit 1\necho ok\nawk '/^MemTotal:/{{print int($2/1024)}}' /proc/meminfo 2>/dev/null\nsystemd-run --user --scope --quiet true >/dev/null 2>&1 && echo scope\nexit 0", hb(a, &h)), 60).await;
+        if r.c != 0 {
+            return Err(format!("{}{}", r.o, r.e).trim().chars().take(300).collect());
+        }
+        let t = r.o.lines().find_map(|l| l.trim().parse::<i64>().ok()).unwrap_or(0);
+        if t > 0 && r.o.lines().any(|l| l.trim() == "scope") {
+            a.db.ks(&format!("scope:{id}"), &serde_json::json!(true));
+            a.db.ks(&format!("mem:{id}"), &serde_json::json!(memcap(t, h.ln.max(h.ci))));
+        } else {
+            a.db.kd(&format!("scope:{id}"));
+            a.say("ci", &format!("[{id}] no memory limit: this machine runs builds directly and has no systemd user scope; a heavy test suite can use all of its memory"), None);
+        }
+        return Ok(());
     }
     let r = hraw(&h, &dkup(&h, cpu), 3600).await;
     if r.c == 0 {

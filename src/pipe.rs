@@ -473,6 +473,10 @@ async fn cirun(a: &Ax, j: &Job, at: Option<&str>) -> (i32, String) {
     (e, o)
 }
 
+fn oom(o: &str) -> Option<i64> {
+    Regex::new(r"\[oom (\d+)MB\]\s*$").unwrap().captures(o).and_then(|m| m[1].parse().ok())
+}
+
 fn lost(o: &str) -> bool {
     !Regex::new(r"\[exit -?\d+\]\s*$").unwrap().is_match(o)
 }
@@ -521,6 +525,10 @@ async fn ci0(a: &Ax, j: &mut Job) -> R<String> {
         if ec == 124 || ec == 137 && m >= (CIT / 60) as i64 - 1 {
             a.st("ci", "idle", None, "sad");
             return Ok(format!("CI aborted after {} min (timeout)", CIT / 60));
+        }
+        if let Some(mb) = oom(&o) {
+            a.st("ci", "idle", None, "sad");
+            return drop(format!("CI ran out of memory after {m} min: `{c}` needs more than {mb} MB on {}. Lower the repo's test parallelism or run it on a bigger machine, then requeue", j.h()));
         }
         a.say("ci", &format!("red (exit {ec}) after {m} min"), Some(j.id));
         let inf = if lost(&o) { Some("connection lost".to_string()) } else { Regex::new(r"No space left on device|failed to unpack package|invalid gzip header|corrupt deflate stream|failed to download from|ECONNRESET|ETIMEDOUT|Could not resolve host|EAI_AGAIN").unwrap().find(&o).map(|m| m.as_str().to_string()) };
@@ -1708,14 +1716,17 @@ pub async fn lanes(a: Ax) {
             if !x.on {
                 continue;
             }
-            if x.dk && !ENS.lock().unwrap().contains(&x.id) {
+            // Direct machines too: ensure sets their thread caps and memory scope.
+            if !ENS.lock().unwrap().contains(&x.id) {
                 if ING.lock().unwrap().insert(x.id.clone()) {
-                    let (a2, id) = (a.clone(), x.id.clone());
+                    let (a2, id, dk) = (a.clone(), x.id.clone(), x.dk);
                     tokio::spawn(async move {
-                        a2.say("ci", &format!("[{id}] preparing the build container"), None);
+                        a2.say("ci", &format!("[{id}] {}", if dk { "preparing the build container" } else { "checking the machine's limits" }), None);
                         match crate::sh::ensure(&a2, &id).await {
                             Ok(()) => {
-                                a2.db.ks(&format!("up:{id}"), &json!(true));
+                                if dk {
+                                    a2.db.ks(&format!("up:{id}"), &json!(true));
+                                }
                                 ENS.lock().unwrap().insert(id.clone());
                             }
                             Err(m) => a2.say("ci", &format!("[{id}] machine not ready: {m}"), None),
@@ -1811,6 +1822,11 @@ mod t {
         let o = "CI: 6 passed, FAILED at `deny`: cargo-deny is required in CI: cargo install cargo-deny --locked\nxtask ci: error: ci failed at `deny`\n[exit 1]";
         assert!(!lost(o));
         assert!(lost("Compiling foo\n"));
+        assert_eq!(oom("Compiling foo\n[oom 10752MB]\n"), Some(10752));
+        assert_eq!(oom("[exit 101]"), None);
+        assert_eq!(crate::sh::memcap(14336, 1), 10752);
+        assert_eq!(crate::sh::memcap(4096, 1), 2048);
+        assert_eq!(crate::sh::memcap(65536, 2), 24576);
         assert_eq!(tool(o).unwrap().1.as_deref(), Some("cargo-deny"));
         assert_eq!(tool("error: no such command: `nextest`\n[exit 101]").unwrap().1.as_deref(), Some("cargo-nextest"));
         assert_eq!(tool("sh: 1: pnpm: command not found\n[exit 127]").unwrap().1, None);
