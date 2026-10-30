@@ -1,0 +1,107 @@
+# Ephemeral cloud build hosts (fork-only scope)
+
+Status: **Scoped, not started** (2026-10-29). Fork `flyboy-byte/ApolloOffice`; not planned for upstream
+unless it turns out unusually good. No instance has been created yet; the first real one waits for Logan's go
+(it costs money).
+
+Evidence tags: `CODE` = read in this repo, `DOCUMENTED` = provider docs, `INFERRED` = my reasoning,
+`UNKNOWN` = check before relying on it.
+
+## Goal
+
+Rent a big box (high RAM / many cores) from Linode for a short window, register it as a normal ApolloOffice
+machine, let the lanes run jobs on it, then **delete it**, with a dead-man switch that deletes it even if the
+controller (this laptop) crashes, sleeps or loses network.
+
+The controller stays local. The cloud box is only a build host.
+
+## Why it fits the existing design (`CODE`)
+
+- A machine is just a row in `hs` with an `ssh` target (`src/web.rs` `/api/host`; `src/sh.rs` `Ho`). `root@1.2.3.4`
+  passes the existing ssh regex.
+- Code moves as **git bundles over ssh** (`src/pipe.rs:111` in, `:1163` out). The GitHub token never reaches the
+  host, so a throwaway box holds no long-lived secret.
+- `sh::ensure` / `dkup` prepare Docker on the host; `pipe::lanes` re-scans machines every 30 s and starts lanes;
+  `pipe::lane` exits when its machine row disappears or is switched off (`src/pipe.rs:1676`).
+- Docker Compose is **not** needed: the office manages its own single build container (`dkup`). cloud-init
+  installing Docker is enough.
+
+## Lifecycle
+
+```
+want box ─▶ create (API, cloud-init, tags, pre-made host key) ─▶ wait for ssh ─▶ insert hs row (dk=1, ln=N)
+   ─▶ lanes pick it up ─▶ idle or TTL ─▶ drain (on_=0) ─▶ evacuate pending work ─▶ DELETE instance ─▶ delete hs row
+```
+
+Trigger, in order of building: (1) a manual "Rent a box for N minutes" button, (2) a repo setting "needs big box",
+(3) automatic when the queue has jobs and no free lane. Start with (1).
+
+## Dead-man switch (layered)
+
+Billing fact: Linode bills an instance while it **exists**, powered off or not (`DOCUMENTED`, reconfirm before
+building). So "shut down" is not a kill; only **delete** stops the meter.
+
+| Layer | Where it runs | What it does | Survives laptop dying? |
+| --- | --- | --- | --- |
+| L1 controller teardown | ApolloOffice | idle timer / TTL → drain → delete | no |
+| L2 startup sweep | ApolloOffice, on boot and every 5 min | list instances tagged `apollo-office`; delete any not in `hs`, or past its expiry | no (but cleans up on next start) |
+| L3 external reaper | `flyboybyte` VPS cron, every 5 min | list tagged instances; delete any whose `ao-exp-<unix>` tag is in the past | **yes** |
+| L4 on-box timer | the box itself (`shutdown -h +N` from cloud-init) | stops compute at hard TTL + margin | n/a; does **not** stop billing, only stops work |
+
+- The **expiry is baked into a tag at creation** (`ao-exp-<unix>`), so L3 needs no controller state, only a Linode
+  token. L3 is the real dead-man switch.
+- The controller may **extend** expiry while it is alive and jobs run (rewrite the tag); a dead controller can't, so
+  the box dies at the last expiry. Hard ceiling regardless of extensions (e.g. 2 h) (`INFERRED` default).
+- Do **not** put a Linode token on the box for self-delete: Linode token scopes are per resource type, not per
+  instance (`DOCUMENTED`, reconfirm), so a box token could delete every instance on the account.
+- L3 needs a Linode token on the VPS. It lives outside this repo (the VPS has its own docs:
+  `~/projects/extraction/docs/flyboybyte-vps-architecture.md`). Read-write `linodes` scope; nothing else.
+
+## Spend guards (checked before every create)
+
+- Max concurrent rented boxes (default 1).
+- Max rented hours per day and a USD/day cap, using the type's hourly price from the API (`/linode/types`).
+- Office pause / usage-limit pause also blocks creating new boxes.
+- Every create and delete is logged as an office event with instance id, type, region, expiry.
+
+## Problems found while scoping (must solve)
+
+1. **Pending approvals keep their work on the host** (`CODE`): `pipe::disk` protects dirs of jobs in
+   `ready/submit/approve`, and Submit builds the outgoing bundle on the host (`src/pipe.rs:1163`). Deleting the box
+   before Logan approves loses the PR. Fix: when a job reaches `approve` on an ephemeral host, copy its branch
+   bundle to the controller (`<data>/run/out-<id>.bundle`), and let Submit push from that copy when the host is
+   gone. Rebase/review-fix loops (Watcher) then need a host again, which is fine: any machine can re-fetch.
+2. **First ssh connect fails** (`CODE`): `sshv` uses `BatchMode=yes` with no host-key policy. Fix: the controller
+   generates an ed25519 host key, injects it through cloud-init `ssh_keys` (`DOCUMENTED` cloud-init feature), and
+   writes it to `known_hosts` before boot. No `accept-new`, no blind trust.
+3. **Image build time** (`INFERRED`): `dkup` builds the `rust:1-trixie` image on a fresh box; that could eat most of
+   a 20-minute window. Options: (a) Linode private image snapshotted once with Docker + the build image preloaded,
+   (b) `docker save | ssh docker load` from the laptop, (c) public prebuilt image on a registry. Start with (a).
+4. **Jobs running at TTL** (`INFERRED`): drain = `on_=0`, wait for running jobs up to a grace period, then delete
+   anyway and requeue whatever was mid-run (the existing `recover`/requeue paths handle restarts).
+
+## Code shape
+
+- `src/cloud.rs`: provider trait (`create`, `delete`, `list_tagged`, `set_expiry`, `price`), Linode first.
+  Hetzner/DigitalOcean later behind the same trait.
+- `hs` gains `eph` (provider + instance id + expiry); ephemeral rows are created and removed only by `cloud.rs`.
+- A loop next to `pipe::guard` for idle detection, expiry extension, L2 sweep.
+- Linode token stored with `vault.rs` like provider keys.
+- UI: machine settings section "Rent a box": type, region, minutes, caps; a countdown on rented machines.
+- L3 reaper: a small standalone script (Python, stdlib only) + cron entry, kept in `tools/reaper/` here and deployed
+  to the VPS by hand.
+
+## Build order (each step independently useful)
+
+1. Host-key pinning for **any** ssh machine (problem 2). Small; helps normal machines too.
+2. Evacuate approve-state bundles to the controller (problem 1). Also helps when a normal machine goes away.
+3. L3 reaper script, tested by hand against a tagged nanode with a 10-minute expiry.
+4. `cloud.rs` create/delete + spend guards + L1/L2, manual button only.
+5. Prebaked image (problem 3), then try a high-RAM type.
+
+## Open questions (defaults picked, change if wrong)
+
+- Region: closest to Logan. `UNKNOWN`, ask.
+- Types: start with the smallest shared type for testing; high-memory type for real runs. Prices: read from the API,
+  not hardcoded.
+- Hard ceiling per box: 2 h. Default rental: 20 min, extended while jobs run.
