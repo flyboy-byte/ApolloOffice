@@ -1,0 +1,134 @@
+#!/usr/bin/env python3
+"""ao: drive a running ApolloOffice from the terminal or another Claude session (fork; docs/manager.md, docs/skills.md).
+
+Token: create one in the office (Settings -> API), save it to ~/.config/apollo-office/token (chmod 600) or set AO_TOKEN.
+Office address: AO_URL, default http://127.0.0.1:47300.
+"""
+import argparse, json, os, sys, time, urllib.error, urllib.request
+
+URL = os.environ.get("AO_URL", "http://127.0.0.1:47300").rstrip("/")
+TOKEN_FILE = os.path.expanduser("~/.config/apollo-office/token")
+
+
+def token():
+    t = os.environ.get("AO_TOKEN", "").strip()
+    if not t and os.path.exists(TOKEN_FILE):
+        t = open(TOKEN_FILE).read().strip()
+    if not t:
+        sys.exit(f"no API token: create one in the office (Settings -> API) and save it to {TOKEN_FILE}")
+    return t
+
+
+def call(method, path, body=None):
+    req = urllib.request.Request(URL + path, method=method, data=json.dumps(body).encode() if body is not None else None,
+                                 headers={"authorization": "Bearer " + token(), "content-type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return json.load(r)
+    except urllib.error.HTTPError as e:
+        sys.exit(f"{e.code}: {e.read().decode(errors='replace').strip()}")
+    except urllib.error.URLError as e:
+        sys.exit(f"office not reachable at {URL} ({e.reason}). Is it running? (Logan starts it himself.)")
+
+
+def ago(ms):
+    if not ms:
+        return "-"
+    m = int((time.time() * 1000 - ms) / 60000)
+    return f"{m}m" if m < 120 else f"{m // 60}h{m % 60:02d}m"
+
+
+def show(s):
+    o = s["office"]
+    print(f"office: {'OFF' if o['off'] else 'paused: ' + o['pause'] if o['pause'] else 'running'}"
+          + (f"   focus: {s['focus']['ids']}{' (only)' if s['focus']['only'] else ''}" if s["focus"]["ids"] else ""))
+    for h in s["machines"]:
+        hw = h.get("hw") or {}
+        print(f"machine {h['id']}: {'docker' if h['dk'] else 'direct'}, cpu {h['cpu']}, mem cap {h['mem_mb'] or '-'} MB"
+              + (f", load {hw.get('load')}" if isinstance(hw, dict) and hw.get("load") is not None else ""))
+    print("jobs:")
+    for j in s["jobs"]:
+        ref = f"{j['repo']}#{j['num']}" if j["num"] else f"{j['repo']} {j['kind']}"
+        print(f"  {'*' if j['focus'] else ' '}{j['id']:>4} {j['st']:<8} {ago(j['t1']):>6}  {ref}  {j['title'][:60]}")
+        if j.get("ci"):
+            print(f"        ci: {j['ci']}")
+        elif j.get("why") and j["st"] in ("approve", "ready", "vet"):
+            print(f"        {j['why'][:110]}")
+    busy = [f"{k}: {w['say'][:90]}" for k, w in s["workers"].items() if w["st"] == "work"]
+    if busy:
+        print("working:")
+        for b in busy:
+            print("  " + b)
+    if s["recent"]:
+        print("recent:")
+        for j in s["recent"][:5]:
+            print(f"   {j['id']:>4} {j['st']:<5} {j['repo']}#{j['num']}  {(j['why'] or '')[:80]}")
+
+
+def main():
+    p = argparse.ArgumentParser(prog="ao", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sp = p.add_subparsers(dest="cmd", required=True)
+    s = sp.add_parser("status", help="one screen: jobs, machines, what's working")
+    s.add_argument("--json", action="store_true")
+    w = sp.add_parser("watch", help="print changes until a condition")
+    w.add_argument("--job", type=int)
+    w.add_argument("--until", choices=["approve", "done", "drop", "end"], help="stop when the job (or any job) reaches this; end = done or drop")
+    w.add_argument("--every", type=int, default=20)
+    pt = sp.add_parser("point", help="queue owner/repo#N and focus on it, with an optional brief")
+    pt.add_argument("target", help="owner/repo#N")
+    pt.add_argument("--brief", help="file with the brief, or - for stdin")
+    pt.add_argument("--only", action="store_true", help="nothing else starts until this job ends")
+    pt.add_argument("--requeue", action="store_true", help="if the job was dropped, send it back to Vet")
+    f = sp.add_parser("focus", help="focus on an existing job id, or --clear")
+    f.add_argument("id", nargs="?", type=int)
+    f.add_argument("--only", action="store_true")
+    f.add_argument("--brief")
+    f.add_argument("--clear", action="store_true")
+    sp.add_parser("repos", help="repositories the office works on")
+    a = p.parse_args()
+
+    if a.cmd == "status":
+        st = call("GET", "/v1/state")
+        print(json.dumps(st, indent=1)) if a.json else show(st)
+    elif a.cmd == "repos":
+        print("\n".join(call("GET", "/v1/repos")))
+    elif a.cmd in ("point", "focus"):
+        body = {"only": a.only}
+        if getattr(a, "brief", None):
+            body["brief"] = sys.stdin.read() if a.brief == "-" else open(a.brief).read()
+        if a.cmd == "point":
+            repo, _, n = a.target.partition("#")
+            if not n.isdigit():
+                sys.exit("target must look like owner/repo#123")
+            body.update({"repo": repo, "issue": int(n), "src": "ao", "requeue": a.requeue})
+        elif a.clear:
+            body = {"clear": True}
+        elif a.id is None:
+            sys.exit("give a job id or --clear")
+        else:
+            body["id"] = a.id
+        print(json.dumps(call("POST", "/v1/focus", body)))
+    elif a.cmd == "watch":
+        stop = {"approve": ("approve",), "done": ("done",), "drop": ("drop",), "end": ("done", "drop")}.get(a.until or "", ())
+        last, first = {}, True
+        while True:
+            st = call("GET", "/v1/state")
+            jobs = {j["id"]: j for j in st["recent"]}
+            jobs.update({j["id"]: j for j in st["jobs"]})
+            for jid, j in sorted(jobs.items()):
+                if a.job and jid != a.job:
+                    continue
+                key = (j["st"], j.get("ci"), j.get("why"))
+                if last.get(jid) == key:
+                    continue
+                moved = jid in last and last[jid][0] != j["st"]
+                last[jid] = key
+                if not first or a.job:
+                    print(f"{time.strftime('%H:%M')} job {jid} {j['st']}: {j.get('ci') or j.get('why') or ''}"[:200], flush=True)
+                if j["st"] in stop and (moved or (first and a.job)):
+                    return
+            first = False
+            time.sleep(max(5, a.every))
+
+if __name__ == "__main__":
+    main()

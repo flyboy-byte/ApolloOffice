@@ -51,6 +51,8 @@ build order); the lines below are the summary.
 Scoped in `docs/cloud-hosts.md`. Not started. First real instance needs Logan's OK (money).
 
 ### 4. Manager (steer in plain words; focus "only this one tonight")
+- ~~Focus, `ao` CLI, `apollo-office` skill~~ BUILT 2026-10-30 (see `docs/manager.md`). Briefs from Logan's sessions ride
+  along with the job; Vet now keeps issue triage for every later worker.
 Scoped in `docs/manager.md`. Not started.
 
 ### 5. Attribution for projects with their own rules

@@ -1,6 +1,13 @@
 # Manager: steering the office in plain words (fork-only scope)
 
-Status: **Scoped, not started** (2026-10-29; phase 1.5 added 2026-10-30 from the parking lot). Fork `flyboy-byte/ApolloOffice`.
+Status: **Focus + `ao` CLI + skill BUILT (2026-10-30)**; phases 1.5/2 scoped. Phase 1.5 added 2026-10-30 from the parking lot.
+
+As built: token API `/v1/focus` (queue an issue or pick a job, attach a brief, `only`) and `/v1/state`; `src/focus.rs`
+(focused jobs first in `pipe::pick`, `only` skips the rest, clears itself). CLI `tools/ao` (stdlib Python: status,
+watch, point, focus, repos), tested against a scratch instance. Skill `tools/skill/apollo-office/SKILL.md`, linked at
+`~/.claude/skills/apollo-office`, so Logan's other sessions (SolidCraft) can point the engine at an issue with a brief
+of what they know. Logan's framing (2026-10-30): he is building an engine to turn loose (hunting) and to aim from his
+own sessions while it's being built and debugged; not a "Jarvis" demo. Uses the upstream API token (Settings → API). Fork `flyboy-byte/ApolloOffice`.
 
 ## Goal
 
