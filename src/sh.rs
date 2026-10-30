@@ -351,7 +351,7 @@ fn sshv(h: &Ho) -> Vec<String> {
 }
 
 fn jobs(a: &App, h: &Ho) -> String {
-    let c = a.db.kg(&format!("cpu:{}", h.id)).as_i64().filter(|_| h.dk).unwrap_or(0);
+    let c = a.db.kg(&format!("cpu:{}", h.id)).as_i64().unwrap_or(0);
     if c <= 0 {
         return String::new();
     }
@@ -442,13 +442,14 @@ pub async fn orph(a: &Ax, id: &str) {
 
 pub async fn ensure(a: &Ax, id: &str) -> Result<(), String> {
     let Some(h) = ho(a, id) else { return Err("unknown machine".into()) };
+    let n = hraw(&h, "getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || echo 4", 30).await.o.trim().parse::<i64>().unwrap_or(4);
+    let cpu = if h.cpu > 0 { h.cpu.min(n) } else { (n - 1).max(1) };
+    // Direct machines get the same thread caps and low priority as Docker ones; there is no memory cap here.
+    a.db.ks(&format!("cpu:{id}"), &serde_json::json!(cpu));
     if !h.dk {
         let r = hraw(&h, &format!("mkdir -p \"{}\" && git --version >/dev/null && echo ok", hb(a, &h)), 60).await;
         return if r.c == 0 { Ok(()) } else { Err(format!("{}{}", r.o, r.e).trim().chars().take(300).collect()) };
     }
-    let n = hraw(&h, "getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || echo 4", 30).await.o.trim().parse::<i64>().unwrap_or(4);
-    let cpu = if h.cpu > 0 { h.cpu.min(n) } else { (n - 1).max(1) };
-    a.db.ks(&format!("cpu:{id}"), &serde_json::json!(cpu));
     let r = hraw(&h, &dkup(&h, cpu), 3600).await;
     if r.c == 0 {
         Ok(())
