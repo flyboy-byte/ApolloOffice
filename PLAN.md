@@ -67,8 +67,14 @@ was taken (2026-10-29). Cherry-pick any of these if wanted; the others forks hav
 ### 7. Usage-aware model choice per agent
 Logan wants the office aware of plan usage when it picks models (2026-10-30). Scoped in `docs/agents.md` item 7.
 
-### 8. Context and efficiency of every agent
-Scoped in `docs/agents.md` item 8, with last night's token numbers and a before/after query.
+### 8. Knowledge, context and efficiency of every agent
+Not mainly token trimming (Logan, 2026-10-30): workers should know the repo's docs, history and rules and follow the
+skills they're given. Routes R1–R6 in `docs/agents.md` item 8 (recommend: per-repo knowledge base + Curator + checked
+adherence, through native skills); token hygiene is 8b.
+
+### 9. Real-time awareness and skills for the app
+`docs/skills.md`: `ao status`/`watch` + an `apollo-office` Claude Code skill; a situation block in worker prompts; skill
+packs per repo/role (native Claude skills VERIFIED to work in an office-style worker); lessons the office grows.
 
 ## Open questions for Logan
 - None open. (Codex vs Claude split → item 7.)

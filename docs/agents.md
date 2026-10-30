@@ -1,6 +1,6 @@
 # Agents: usage-aware model choice, context and efficiency (fork-only scope)
 
-Status: **Scoped, not started** (2026-10-30). PLAN.md items 7 and 8.
+Status: **Scoped, not started** (2026-10-30). PLAN.md items 7 and 8. Item 8 rewritten the same day after Logan's correction.
 
 Evidence tags: VERIFIED = read in code or the office DB on 2026-10-30; INFERRED = not checked.
 
@@ -50,7 +50,52 @@ Goal: the office knows how much of each plan is left and routes accordingly, ins
 - **Free-first** (`routing.rs`) stays as it is, a separate opt-in; when it is on, this policy is off.
 - **Test:** pure function `pick(role, list, usage, thresholds) -> (model, reason)` with unit tests on the boundaries.
 
-## 8. Context and efficiency per agent
+## 8. Knowledge: workers that know the repo, the rules and the history
+Logan's point (2026-10-30): starting each call fresh only buys *some* efficiency. The big win is the knowledge a good
+human session has: the project's docs, its quirks, what was tried before, and the skills it is told to follow, and
+actually following them. Today an office worker has none of that: every job re-learns SolidCraft from the issue text and
+the repo, and owner guidance is one free-text `rules` field. This is the same shape as Logan's own repos (CLAUDE.md → PLAN
+→ HANDOFF → memory → skills), applied to the office's workers.
+
+VERIFIED 2026-10-30: a worker started exactly like the office starts them (`--setting-sources project`, built-in tools off)
+but with `--tools Skill --allowedTools Skill` and a `.claude/skills/<name>/SKILL.md` in its working directory found and used
+the skill (scratch probe, Haiku, one call). So native skills are a working delivery channel; see `docs/skills.md` B2.
+
+### Routes (Logan doesn't know which yet; pick-any-order, recommendation last)
+- **R1. A knowledge base per repo, owned by the office.** `<data>/know/<owner__repo>/`:
+  - `BRIEF.md`: how to build and test (the narrow command and the full one, how long each takes), layout, crates, env
+    quirks (`SOLIDCRAFT_TEST_JOBS`), labels to stay away from (`kernel-paused`), how the maintainers like PRs.
+  - `LESSONS.md`: reviewer rejections, failed approaches, flaky tests, what CI red on main looked like.
+  - `HISTORY.md`: one line per finished job: issue, outcome, PR, what it touched.
+  Every worker gets it as a native skill `repo-<name>` (description only until loaded) or, for Codex, an inlined slice.
+  Seeded once by a Curator call that reads the repo's README/CONTRIBUTING/CLAUDE.md/AGENTS.md/CI files (treated as
+  data, after Guard).
+- **R2. A Curator step that keeps it current.** After each job ends (done, drop, or rejected at approval), one cheap call
+  gets the job's events, CI evidence and reviewer findings and proposes a diff to `LESSONS.md`/`HISTORY.md` (and `BRIEF.md`
+  when a fact changed). Capped size; old lines get merged, not appended forever. Brief changes wait for Logan's click
+  (they shape every later job); lessons/history apply directly, struck through rather than deleted when wrong.
+- **R3. Skills Logan already has, applied per role** (`docs/skills.md` B2): `oss-contribute` for Vet/Submit (claiming,
+  honest PRs, attribution), `solidcraft-checking` for Fixer/Reviewer on SolidCraft.
+- **R4. Adherence that's checked, not hoped for.** Reviewer gets a checklist built from the brief + rules + skills
+  ("trailer is `Co-Authored-By: Claude Code …`", "ran the narrow test before the full one", "no kernel crate change while
+  kernel-paused") and answers per item. The controller checks the mechanical ones itself (trailers, footer, test command
+  used, files touched vs forbidden paths), the same way `judge` checks red/green itself. A miss goes back to the Fixer.
+  Each job records its adherence score.
+- **R5. Role definitions as editable agent files.** `prompts/*.md` are embedded and fixed. Allow overrides per repo in
+  `<data>/agents/<repo>/<role>.md` (fork setting), so a repo can change how its Fixer behaves without a rebuild. Optional.
+- **R6. A whole agentic subsystem:** a long-lived lead agent with its own memory that plans each job, hands workers a
+  briefing, and reads their results. That is `docs/manager.md` phase 2 grown up; the heaviest route, and R1–R4 are its
+  parts anyway.
+
+**Recommendation:** R1 + R2 + R4 first, delivered through native skills (R3's mechanism). That's the smallest thing that
+gives every worker "the repo's CLAUDE.md and memory" and makes rules stick. R6 only if a lead agent is still missing
+once that works.
+
+**Measure** (before/after, same repo): Repro turns and context spent exploring before the first test run; jobs dropped
+for a reason the brief already stated; reviewer rejections per job; adherence misses at approval. Query `cost` + `ev`
+per job; keep the numbers here.
+
+## 8b. Token hygiene (smaller wins, still worth doing)
 Ordered by payoff per effort.
 
 - a. **Batch Vet.** Vet runs once per issue (`src/wk.rs:180`; 39 calls, each a fresh ~7 k prefix). Scout and Guard already
@@ -80,7 +125,8 @@ sqlite3 -header -column ~/.local/share/apollo-office/office.db "select w, md, co
 ```
 
 ## Build order
-1. 8a + 8b (batch Vet, skip labels): biggest count reduction, no behavior risk.
-2. 7 (usage-aware pick): pure function + tests first, then wire into `App::md`.
-3. 8c (handoff note), measured on a real job while Logan watches.
-4. 8d/8e only if the measurements say so.
+1. 8 R1 seed + native-skill delivery (`docs/skills.md` B2) for one repo, SolidCraft.
+2. 8 R4 checklist + controller checks (attribution first: PLAN item 5).
+3. 8 R2 Curator after each job.
+4. 7 (usage-aware pick): pure function + tests first, then wire into `App::md`.
+5. 8b token hygiene (batch Vet, skip labels, handoff note) alongside.
