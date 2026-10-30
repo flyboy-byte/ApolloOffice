@@ -1,3 +1,10 @@
+> [!NOTE]
+> **This is Logan Night's personal fork** of [Silvertree2010/ApolloOffice](https://github.com/Silvertree2010/ApolloOffice).
+> Modified since 2026-10-29: safety limits for machines without Docker, notes and lessons passed to workers,
+> switching models based on plan usage, pointing the office at an issue from another session (`tools/ao`),
+> and rented Linode build boxes. Each change is off unless set. Details are in [CLAUDE.md](CLAUDE.md#this-fork).
+> For the real thing, install from upstream's releases below.
+
 <h1 align="center">ApolloOffice</h1>
 
 <p align="center">
