@@ -1,6 +1,6 @@
 # PLAN: flyboy-byte/ApolloOffice (fork)
 
-Status: **Office stopped; thread caps on main + release built; memory cap (1b) scoped in `docs/non-docker.md`** (2026-10-30)
+Status: **Office stopped; non-Docker thread + memory caps on `main` (not yet run on a real job); agents work scoped in `docs/agents.md`** (2026-10-30)
 
 Living state doc. Detail for the last session: `HANDOFF.md`. SolidCraft-specific: 
 `~/projects/oss/projects/solidcraft/apollo-office-handoff.md` (local).
@@ -9,8 +9,9 @@ Living state doc. Detail for the last session: `HANDOFF.md`. SolidCraft-specific
 - Fork `flyboy-byte/ApolloOffice`: `main` = upstream `5dbafee` + `CLAUDE.md` + `docs/cloud-hosts.md` + usage meter
   (cherry-picked from `AJMakesStuff`, authorship kept). Pushed 2026-10-29. Tests passed (54 unit + 2 e2e) before the merge
   commit; the merged tree itself was not re-tested.
-- Thread caps for non-Docker machines merged to `main` (7d656e6, 2026-10-30): tests green (54 + 2), release binary built
-  07:31. Not yet run against a real job. `main` not pushed.
+- Non-Docker safety on `main` (2026-10-30): thread caps (7d656e6) and a memory/CPU systemd scope per script with OOM →
+  drop-with-reason (f8a9533). Tests green (54 + 2; e2e uses a direct machine). Not yet run on a real job. `main` not pushed.
+  Release binary rebuilt with both (2026-10-30).
 - Office data: `~/.local/share/apollo-office` (backup `office.db.bak-2026-10-30`). One repo: `tangency-labs/solidcraft`,
   approval required, hunt off, test command `SOLIDCRAFT_TEST_JOBS=2 cargo xtask ci`. Machine `local`, **no Docker**, 1 lane.
 - Models: Haiku triage + Repro first try, Sonnet Repro second try / Fixer / Complex bugs (no Opus), Codex `gpt-6.1-sol`
@@ -24,7 +25,8 @@ threads, then memory ran out and the office was killed (~2.5 h, no result). Upst
 Docker mode (`jobs()` in `src/sh.rs`) and has no memory cap outside Docker. **Full scope: `docs/non-docker.md`** (b–e, 2a–2c,
 build order); the lines below are the summary.
 - ~~a. Thread caps + nice/ionice for non-Docker machines~~ DONE 2026-10-30 (7d656e6, on `main`).
-- b. **Memory and CPU cap without Docker:** on Linux run each host script under
+- b. ~~**Memory and CPU cap without Docker**~~ DONE 2026-10-30 (f8a9533; the "refuse without a cap" part is not built,
+  only a warning event). Original note: on Linux run each host script under
   `systemd-run --user --scope -p MemoryMax=… -p MemorySwapMax=0 -p CPUQuota=…%` (no root; VERIFIED 2026-10-30: the user
   manager delegates `cpu memory pids` here).
   Fallback when unavailable: refuse to start CI unless the user confirms "no limits".
@@ -62,10 +64,14 @@ disclosing (never off) but matches the project's format.
 `aj` (AJMakesStuff) also has scrollable panels, a "clear queue" button and a manual Hunter trigger. Only the usage meter
 was taken (2026-10-29). Cherry-pick any of these if wanted; the others forks have nothing unique.
 
+### 7. Usage-aware model choice per agent
+Logan wants the office aware of plan usage when it picks models (2026-10-30). Scoped in `docs/agents.md` item 7.
+
+### 8. Context and efficiency of every agent
+Scoped in `docs/agents.md` item 8, with last night's token numbers and a before/after query.
+
 ## Open questions for Logan
-- Does the office keep working on `tangency-labs/solidcraft`, given item 5's rule conflicts and 2.5 h CI runs?
-- Models: Codex (`gpt-6.1-sol`) does Reviewer + Watcher, the light jobs, while Claude's 7-day window was ~60 % used on
-  2026-10-29. Moving more work to Codex (e.g. Repro first try) would save Claude credit. Not decided.
+- None open. (Codex vs Claude split → item 7.)
 
 ## Decisions (do not re-ask)
 - Fork-only work; contribute upstream only if something is unusually good (Logan, 2026-10-29).
@@ -73,3 +79,5 @@ was taken (2026-10-29). Cherry-pick any of these if wanted; the others forks hav
 - Logan starts the office himself; Claude sessions don't (re)start it (2026-10-30).
 - Auto-updates stay off on a source build (the updater would replace it with the upstream binary).
 - No Opus: Complex bugs model is Sonnet (Logan set it, 2026-10-29).
+- SolidCraft stays a target ("it's cool"), but the office only runs on it while Logan supervises (2026-10-30).
+- For now: scope and build only; don't run the office (2026-10-30).

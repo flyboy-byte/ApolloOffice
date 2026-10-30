@@ -1,6 +1,6 @@
 # Running without Docker safely, and cheaper CI (fork-only scope)
 
-Status: **Thread caps shipped on fork `main` (7d656e6, 2026-10-30); the rest scoped, not started.** PLAN.md items 1 and 2.
+Status: **a and b built on fork `main` (7d656e6, f8a9533, 2026-10-30), not yet run on a real job; c–e and 2a–2c scoped.** PLAN.md items 1 and 2.
 
 Why: on 2026-10-29 one SolidCraft `cargo xtask ci` ran 2.5 h on this laptop (12 cores, 14 G RAM), with load around 295. It ran
 out of memory, and the office died with it. Docker mode caps CPU and memory; a direct machine had no caps at all.
@@ -11,7 +11,12 @@ Evidence tags: VERIFIED = checked on this laptop 2026-10-30; INFERRED = from rea
 - ~~a. Thread caps + nice 19 / ionice idle on direct machines~~ (DONE 2026-10-30, `src/sh.rs` `jobs()`/`ensure()`;
   54 unit + 2 e2e green). `cpu:<id>` is now written for direct machines too, at their next `ensure`.
 
-## b. Memory + CPU cap through a systemd user scope (Linux, no root)
+## b. Memory + CPU cap through a systemd user scope (Linux, no root): BUILT 2026-10-30 (f8a9533)
+As built: unit `ao-<host>-<rand>` without `--collect`; after exit 137 the wrapper reads `Result` (VERIFIED: `oom-kill`
+for a 64M scope running a 300M allocation) and prints `[oom <MB>MB]`, then `reset-failed`. CI drops the job with that
+reason (requeue after changing settings). Not built yet: the `mem` machine field, the `unl` flag and the refusal when no
+scope exists (only a warning event today).
+
 VERIFIED: the user manager delegates the `cpu memory pids` controllers here (`user@1000.service/cgroup.controllers`), systemd 262.
 
 **Where:** `hxo` in `src/sh.rs:381` is the only path build/CI scripts take to a host. When the host is not Docker and the
