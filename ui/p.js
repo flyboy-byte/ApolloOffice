@@ -106,6 +106,12 @@
         <label>Daily budget</label><input type="number" name="bud" min="0" step="0.01" value="${r.bud || 0}"><div class="hint">USD for API keys, 0 = no limit. Jobs of this repository wait until midnight once it is used up.</div>
         <label>PR footer</label>${tg("nm", r.nm ?? 1, "mention ApolloOffice with a link")}
         <div class="hint">The AI note and the Co-Authored-By trailers are always added.</div>
+        <label>Test environment</label><textarea name="env" placeholder="optional, one per line, e.g. SOLIDCRAFT_TEST_JOBS=2">${esc(r.env || "")}</textarea>
+        <div class="hint">Exported before the test command. Lines that aren't NAME=value are ignored.</div>
+        <label>Skip labels</label><input type="text" name="skip" value="${esc(r.skip || "")}" placeholder="optional, e.g. kernel-paused, needs-design">
+        <div class="hint">Issues with any of these labels are never picked up.</div>
+        <label>Commit trailers</label><textarea name="atr" placeholder="optional, e.g. Co-Authored-By: Claude Code <noreply@anthropic.com>">${esc(r.atr || "")}</textarea>
+        <div class="hint">Replaces the per-model trailers for this repository. Must include a Co-Authored-By line, otherwise the per-model ones are used.</div>
         <label>Your rules</label><textarea name="rules" placeholder="optional, e.g. only issues labeled bug; never touch the plugin API">${esc(r.rules)}</textarea>
       </div>
       <div class="acts"><button class="pri" data-op="set">Save</button><button type="button" data-op="detect">Detect test command</button><span class="sp"></span><button type="button" class="dng" data-op="del">Remove</button></div><div class="msg"></div></form>`).join("") || `<div class="empty">No repository yet.</div>`}</div>`;

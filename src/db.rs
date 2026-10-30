@@ -31,6 +31,10 @@ fn mig(c: &Connection) {
     let _ = c.execute("alter table hs add column no text default ''", []);
     let _ = c.execute("alter table hs add column cpu int default 0", []);
     let _ = c.execute("alter table rp add column bud real default 0", []);
+    // Fork: per-repo test environment, Scout skip labels, commit trailer template.
+    let _ = c.execute("alter table rp add column env text default ''", []);
+    let _ = c.execute("alter table rp add column skip text default ''", []);
+    let _ = c.execute("alter table rp add column atr text default ''", []);
 }
 
 pub type P = Vec<Box<dyn ToSql + Send>>;

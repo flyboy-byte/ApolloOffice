@@ -59,14 +59,20 @@ pub fn errm(e: &X) -> String {
     }
 }
 
+/// A repo's skip labels: comma- or newline-separated, case-insensitive.
+pub fn skips(s: &str) -> Vec<String> {
+    s.split([',', '\n']).map(|x| x.trim().to_lowercase()).filter(|x| !x.is_empty()).collect()
+}
+
 async fn scout1(a: &Ax) -> R<()> {
     need(a, "scout", &["gh"]).await?;
     a.st("scout", "work", None, "");
     let me = crate::gh::login(a).await;
     let no = Regex::new(r"(?i)\b(enhancement|feature|question|wontfix|won't fix|duplicate|invalid|discussion|idea|roadmap|docs?|documentation)\b").unwrap();
     let ft = Regex::new(r"(?i)^\s*(\[?feat(ure)?\]?|\[?request\]?|idea|proposal)[:\] ]").unwrap();
-    let rs = a.db.all("select full from rp where on_=1 and iss=1 and ci<>''", pa![]);
+    let rs = a.db.all("select full, skip from rp where on_=1 and iss=1 and ci<>''", pa![]);
     for r in rs {
+        let sk = skips(r["skip"].as_str().unwrap_or(""));
         let r = r["full"].as_str().unwrap_or("").to_string();
         let b = bl(a, &r);
         if b == 0 || qn(a, &r, "'vet','ready'") >= 4 * b {
@@ -88,7 +94,7 @@ async fn scout1(a: &Ax) -> R<()> {
             if a.db.one("select upd from seen where repo=? and num=?", pa![r.clone(), n]).map(|x| x["upd"].as_str() == Some(&up)).unwrap_or(false) {
                 continue;
             }
-            if i["labels"].as_array().map(|l| l.iter().any(|x| no.is_match(x["name"].as_str().unwrap_or("")))).unwrap_or(false) || ft.is_match(i["title"].as_str().unwrap_or("")) {
+            if i["labels"].as_array().map(|l| l.iter().any(|x| { let n = x["name"].as_str().unwrap_or(""); no.is_match(n) || sk.contains(&n.to_lowercase()) })).unwrap_or(false) || ft.is_match(i["title"].as_str().unwrap_or("")) {
                 a.db.run("insert into seen(repo,num,upd) values(?,?,?) on conflict do update set upd=excluded.upd", pa![r.clone(), n, up]);
                 continue;
             }
@@ -524,6 +530,12 @@ pub async fn watch(a: Ax) {
 #[cfg(test)]
 mod t {
     use super::*;
+
+    #[test]
+    fn skip_labels() {
+        assert_eq!(skips(" Kernel-Paused, needs-design\nwip ,"), vec!["kernel-paused", "needs-design", "wip"]);
+        assert!(skips("").is_empty());
+    }
 
     #[test]
     fn pend() {

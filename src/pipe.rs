@@ -168,9 +168,19 @@ fn use_(a: &Ax, j: &mut Job, md: &str) {
     }
 }
 
-fn trs(j: &Job) -> Vec<String> {
+fn trs(a: &Ax, j: &Job) -> Vec<String> {
+    if let Some(t) = atr(rp(a, &j.repo)["atr"].as_str().unwrap_or("")) {
+        return t;
+    }
     let ms: BTreeSet<String> = j.d["ms"].as_array().cloned().unwrap_or_default().iter().filter_map(|x| x.as_str().map(|m| format!("Co-Authored-By: {} <{}>", crate::prov::name(m), crate::prov::mail(m)))).collect();
     ms.into_iter().collect()
+}
+
+/// A repo's own trailer lines, used only when every line is a trailer and one is a Co-Authored-By (disclosure stays on).
+pub fn atr(s: &str) -> Option<Vec<String>> {
+    let re = Regex::new(r"^[A-Za-z][A-Za-z-]*: \S.*$").unwrap();
+    let v: Vec<String> = s.lines().map(str::trim).filter(|l| !l.is_empty()).map(String::from).collect();
+    (!v.is_empty() && v.iter().all(|l| re.is_match(l)) && v.iter().any(|l| l.to_lowercase().starts_with("co-authored-by: "))).then_some(v)
 }
 
 pub const FOOT: &str = "🤖 Generated with AI by [ApolloOffice](https://github.com/Silvertree2010/ApolloOffice), see the Co-Authored-By trailers for the models";
@@ -454,7 +464,8 @@ fn unslot(a: &Ax, h: &str) {
 }
 
 async fn cirun(a: &Ax, j: &Job, at: Option<&str>) -> (i32, String) {
-    let c = rp(a, &j.repo)["ci"].as_str().unwrap_or("").to_string();
+    let r0 = rp(a, &j.repo);
+    let c = format!("{}{}", envx(r0["env"].as_str().unwrap_or("")), r0["ci"].as_str().unwrap_or(""));
     let id = j.id;
     let ax = a.clone();
     let ln = move |l: &str| {
@@ -471,6 +482,41 @@ async fn cirun(a: &Ax, j: &Job, at: Option<&str>) -> (i32, String) {
     let o = r.o;
     let e = Regex::new(r"\[exit (\d+)\]\s*$").unwrap().captures(&o).and_then(|m| m[1].parse::<i32>().ok()).unwrap_or(if r.c == 0 { -1 } else { r.c });
     (e, o)
+}
+
+/// The repo's test environment (`NAME=value` lines) as an export prefix; other lines are dropped.
+pub fn envx(s: &str) -> String {
+    let re = Regex::new(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$").unwrap();
+    let v: Vec<String> = s.lines().filter_map(|l| re.captures(l.trim()).map(|m| format!("{}={}", &m[1], q(m[2].trim())))).collect();
+    if v.is_empty() { String::new() } else { format!("export {}; ", v.join(" ")) }
+}
+
+/// The machine is busy when load exceeds its cores or less than 3 GB is available (`/proc` probe: loadavg, MB, cores).
+pub fn busy(o: &str) -> Option<String> {
+    let l: Vec<&str> = o.lines().map(str::trim).collect();
+    let ld = l.first()?.split_whitespace().next()?.parse::<f64>().ok()?;
+    let mb = l.get(1)?.parse::<i64>().ok()?;
+    let n = l.get(2)?.parse::<f64>().ok()?;
+    if ld > n || mb < 3072 { Some(format!("load {ld:.1} on {n} cores, {:.1} GB free", mb as f64 / 1024.0)) } else { None }
+}
+
+async fn calm(a: &Ax, j: &Job) {
+    if crate::app::fast() {
+        return;
+    }
+    let Some(h) = ho(a, &j.h()) else { return };
+    if h.dk {
+        return;
+    }
+    for i in 0..60 {
+        let r = crate::sh::hraw(&h, "cut -d' ' -f1 /proc/loadavg 2>/dev/null; awk '/^MemAvailable:/{print int($2/1024)}' /proc/meminfo 2>/dev/null; getconf _NPROCESSORS_ONLN", 30).await;
+        let Some(m) = busy(&r.o) else { return };
+        if i % 10 == 0 {
+            a.say("ci", &format!("[{}] waiting before CI: machine busy ({m})", j.h()), Some(j.id));
+        }
+        sl(30_000).await;
+    }
+    a.say("ci", &format!("[{}] still busy after 30 min, starting CI anyway", j.h()), Some(j.id));
 }
 
 fn oom(o: &str) -> Option<i64> {
@@ -499,6 +545,7 @@ async fn ci(a: &Ax, j: &mut Job) -> R<String> {
     struct SlotGuard(Ax,String);
     impl Drop for SlotGuard {fn drop(&mut self) {unslot(&self.0,&self.1);}}
     let _guard=SlotGuard(a.clone(),j.h());
+    calm(a, j).await;
     ci0(a, j).await
 }
 
@@ -1116,7 +1163,7 @@ async fn submit(a: &Ax, j: &mut Job) -> R<(String, i64)> {
     need(a, "submit", &["gh", &j.h()]).await?;
     let f = j.d["f"].clone();
     let ft = fo(a, j);
-    let tr = trs(j);
+    let tr = trs(a, j);
     let ti = j.d["pt"].as_str().map(String::from).filter(|x| !x.trim().is_empty()).unwrap_or(f["title"].as_str().unwrap_or(&j.title).to_string());
     if j.kind == "fix" && !j.d["sq"].as_bool().unwrap_or(false) {
         let rf = if j.ext() { "Reported to us directly".to_string() } else if j.hunt() || j.num == 0 { format!("Found while testing {}", j.wh()) } else { format!("Fixes #{}", j.num) };
@@ -1837,6 +1884,16 @@ mod t {
         assert_eq!(crate::sh::memcap(14336, 1), 10752);
         assert_eq!(crate::sh::memcap(4096, 1), 2048);
         assert_eq!(crate::sh::memcap(65536, 2), 24576);
+        assert_eq!(busy("2.5\n9000\n12"), None);
+        assert!(busy("14.2\n9000\n12").unwrap().contains("load 14.2"));
+        assert!(busy("1.0\n2000\n12").unwrap().contains("2.0 GB free"));
+        assert_eq!(busy("garbage"), None);
+        assert_eq!(envx("SOLIDCRAFT_TEST_JOBS=2\nnot a var\n X=a b "), "export SOLIDCRAFT_TEST_JOBS='2' X='a b'; ");
+        assert_eq!(envx(""), "");
+        assert_eq!(atr("Co-Authored-By: Claude Code <noreply@anthropic.com>"), Some(vec!["Co-Authored-By: Claude Code <noreply@anthropic.com>".to_string()]));
+        assert_eq!(atr("Signed-off-by: L <l@x>"), None);
+        assert_eq!(atr("Co-Authored-By: A <a@x>\nnot a trailer"), None);
+        assert_eq!(atr(""), None);
         assert_eq!(tool(o).unwrap().1.as_deref(), Some("cargo-deny"));
         assert_eq!(tool("error: no such command: `nextest`\n[exit 101]").unwrap().1.as_deref(), Some("cargo-nextest"));
         assert_eq!(tool("sh: 1: pnpm: command not found\n[exit 127]").unwrap().1, None);
