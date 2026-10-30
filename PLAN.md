@@ -52,6 +52,20 @@ Scoped in `docs/manager.md`. Not started.
 Commits always carry model-name `Co-Authored-By` trailers and a fixed PR footer (upstream: always on). Logan's SolidCraft
 rule is `Co-Authored-By: Claude Code <noreply@anthropic.com>`. Need: a per-repo trailer/footer template that stays
 disclosing (never off) but matches the project's format.
+- Where: trailers are built for generated commits and checked by `tests/e2e.rs` (it asserts on `Co-Authored-By` and the PR
+  footer, so the test changes with it). Add repo fields `trailer` (template, e.g. `Co-Authored-By: Claude Code
+  <noreply@anthropic.com>`) and `footer`; empty = today's text. Never allow both empty of AI disclosure.
+- SolidCraft also wants a claim-by-draft-PR step and a check against Logan's own open PRs before work starts:
+  `~/projects/oss/projects/solidcraft/apollo-office-handoff.md`. Not scoped further until Logan decides SolidCraft stays.
+
+### 6. Other forks' features (parked, not rejected)
+`aj` (AJMakesStuff) also has scrollable panels, a "clear queue" button and a manual Hunter trigger. Only the usage meter
+was taken (2026-10-29). Cherry-pick any of these if wanted; the others forks have nothing unique.
+
+## Open questions for Logan
+- Does the office keep working on `tangency-labs/solidcraft`, given item 5's rule conflicts and 2.5 h CI runs?
+- Models: Codex (`gpt-6.1-sol`) does Reviewer + Watcher, the light jobs, while Claude's 7-day window was ~60 % used on
+  2026-10-29. Moving more work to Codex (e.g. Repro first try) would save Claude credit. Not decided.
 
 ## Decisions (do not re-ask)
 - Fork-only work; contribute upstream only if something is unusually good (Logan, 2026-10-29).
