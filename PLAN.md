@@ -92,12 +92,38 @@ packs per repo/role (native Claude skills VERIFIED to work in an office-style wo
 dashboard. Manager ideas from the parking lot (MCP privilege split, any FOSS agent as manager) are in `docs/manager.md`
 phase 1.5.
 
+### 11. Weight check: are the fork additions laggy or token-heavy? (assessed 2026-10-30, not yet measured)
+Upstream's design goal is token-light (Netter, 2026-10-30). Baseline from `cost` (pre-fork jobs, avg tokens per call,
+input + cache write + cache read + output): Vet ~7.7k, Guard ~8k, Scout ~10.5k, Repro ~77k, Fixer ~89k. Only one job
+ever reached Repro/Fixer, so those two are one sample each.
+
+What each addition adds (ESTIMATED from the caps in code, ~4 chars/token):
+| Addition | Tokens | Lag |
+| --- | --- | --- |
+| Triage for Repro/Fixer/Reviewer (`know::triage`) | ≤ ~2.4k per call (8000 + 1500 char caps); 0 when the issue has no comments | none |
+| Notes for Claude workers (skills + `nudge`) | ~1k per skill loaded (SolidCraft notes 4 KB) + one extra tool turn | seconds |
+| Notes inlined for Codex/API workers (`know::inline`) | ≤ ~4.3k per call (brief 8000 + notes 6000 + lessons 3000 chars); Codex is the Repro alternate | none |
+| Reviewer rule check | one sentence | none |
+| Curator (`know::curate`) | one Vet-model call per finished job past Vet, ~5–8k | background, off the job's path |
+| Usage-aware choice (`budget`) | 0 (reads usage.rs's cache every 10 min) | none |
+| Focus, repo fields, systemd scope, staging dir | 0 | ms |
+| Busy-machine wait (`pipe::calm`) | 0 | **up to 30 min before CI**, by design |
+| Thread caps + `SOLIDCRAFT_TEST_JOBS=2` | 0 | **slower CI**, the price of not OOMing |
+| Cloud boxes (off unless set) | 0 | boot + `up.sh` for each new box (minutes) |
+
+Read: against Repro/Fixer (~80–90k) the knowledge adds a few percent. Against the one-shot roles it would be large, but
+Scout/Guard/Vet get none of it. The real lag is deliberate (calm, caps). Per job, the Curator is the largest new fixed cost.
+Next, on the first supervised runs: compare `select w, avg(tin+tcw+tcr+tout) from cost where job=? group by w` against
+the baseline above. If triage or inline costs show up, lower the caps: summary only for the Fixer; notes 6000 → 3000;
+the Curator only for jobs that reached CI.
+
 ## Open questions for Logan
 - None open. (Codex vs Claude split → item 7.)
 
 ## Decisions (do not re-ask)
 - Upstream probably leaves these out on purpose; the fork keeps every addition behind a setting whose empty value
   behaves exactly like upstream (Logan, 2026-10-30).
+- Not using upstream's `legacy-0.3` branch (a separate older design, no shared history); Netter's view is in memory (Logan, 2026-10-30).
 - Fork-only work; contribute upstream only if something is unusually good (Logan, 2026-10-29).
 - No builds/tests on this laptop while the office has jobs running: it is also the build host (Logan, 2026-10-30).
 - Logan starts the office himself; Claude sessions don't (re)start it (2026-10-30).
