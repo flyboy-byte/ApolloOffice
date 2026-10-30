@@ -9,7 +9,8 @@ turning GitHub issues into verified bug-fix PRs. AGPL-3.0, beta. User-facing doc
 ## This fork
 
 `origin` is `flyboy-byte/ApolloOffice`, `upstream` is `Silvertree2010/ApolloOffice`, `aj` is
-`AJMakesStuff/ApolloOffice`. Fork-only work, not planned for upstream:
+`AJMakesStuff/ApolloOffice`. **Read `PLAN.md` first** (state, work items, do-not-re-ask decisions), then
+`HANDOFF.md`. Fork-only work, not planned for upstream:
 - Provider usage meter in the header (`src/usage.rs`, `/api/usage`), cherry-picked from `aj` with authorship kept.
 - Ephemeral cloud build hosts with a dead-man switch: scoped in `docs/cloud-hosts.md` (the state doc for it).
 

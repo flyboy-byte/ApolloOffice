@@ -1,0 +1,59 @@
+# PLAN: flyboy-byte/ApolloOffice (fork)
+
+Status: **Office stopped; fork has usage meter; non-Docker safety is the top problem** (2026-10-30)
+
+Living state doc. Detail for the last session: `HANDOFF.md`. SolidCraft-specific: 
+`~/projects/oss/projects/solidcraft/apollo-office-handoff.md` (local).
+
+## Current reality
+- Fork `flyboy-byte/ApolloOffice`: `main` = upstream `5dbafee` + `CLAUDE.md` + `docs/cloud-hosts.md` + usage meter
+  (cherry-picked from `AJMakesStuff`, authorship kept). Pushed 2026-10-29. Tests passed (54 unit + 2 e2e) before the merge
+  commit; the merged tree itself was not re-tested.
+- Branch `raw-caps` (local, not pushed): thread caps for non-Docker machines (`src/sh.rs`). **Not built, not tested.**
+- Office data: `~/.local/share/apollo-office` (backup `office.db.bak-2026-10-30`). One repo: `tangency-labs/solidcraft`,
+  approval required, hunt off, test command `SOLIDCRAFT_TEST_JOBS=2 cargo xtask ci`. Machine `local`, **no Docker**, 1 lane.
+- Models: Haiku triage + Repro first try, Sonnet Repro second try / Fixer / Complex bugs (no Opus), Codex `gpt-6.1-sol`
+  Reviewer, `gpt-5.6-sol` Watcher. Auto-updates off. No daily token cap.
+
+## Work items (independent, pick any order)
+
+### 1. Non-Docker mode must not break the machine (TOP)
+What happened 2026-10-29: one CI run (`cargo xtask ci`, SolidCraft) took load to ~295 on 12 cores, 22 test binaries / 307
+threads, then memory ran out and the office was killed (~2.5 h, no result). Upstream caps threads and priority only in
+Docker mode (`jobs()` in `src/sh.rs`) and has no memory cap outside Docker.
+- a. Thread caps + nice/ionice for non-Docker machines: branch `raw-caps`. Build, test, commit.
+- b. **Memory and CPU cap without Docker:** on Linux run each host script under
+  `systemd-run --user --scope -p MemoryMax=… -p MemorySwapMax=0 -p CPUQuota=…%` (no root; needs the user manager to
+  delegate memory/cpu controllers: INFERRED, check `cat /sys/fs/cgroup/user.slice/user-$UID.slice/user@$UID.service/cgroup.controllers`).
+  Fallback when unavailable: refuse to start CI unless the user confirms "no limits".
+- c. **Load/memory gate:** don't start a CI step when load > cores or MemAvailable < a floor; kill the step's process group
+  when MemAvailable drops below a hard floor, mark it "infra", requeue (not a failed fix).
+- d. Per-repo test env (e.g. `SOLIDCRAFT_TEST_JOBS`) as a proper setting, not hand-edited into the command.
+- e. Run the office itself as a user service (`apollo-office autostart on`), never as a Claude Code background task
+  (Claude Code reaps those under memory pressure).
+
+### 2. Efficiency
+- Full repo CI per job is the cost (2.5 h on SolidCraft). Idea: run the affected crate's tests first (fast proof), full CI
+  only before submit, or on a rented box (item 3).
+- Its own clone + `target/` per repo (24 G for SolidCraft) on a disk at 92%. Disk guard exists (`pipe::guard`) but is
+  sized by `gb` (default 50 G): lower it for this laptop.
+- Vet dropped 49 of 52 SolidCraft issues (mostly `kernel-paused`). Cheap on Haiku, but pointless work: add a per-repo label
+  skip list (e.g. `kernel-paused`) before Vet.
+
+### 3. Ephemeral cloud build hosts + dead-man switch
+Scoped in `docs/cloud-hosts.md`. Not started. First real instance needs Logan's OK (money).
+
+### 4. Manager (steer in plain words; focus "only this one tonight")
+Scoped in `docs/manager.md`. Not started.
+
+### 5. Attribution for projects with their own rules
+Commits always carry model-name `Co-Authored-By` trailers and a fixed PR footer (upstream: always on). Logan's SolidCraft
+rule is `Co-Authored-By: Claude Code <noreply@anthropic.com>`. Need: a per-repo trailer/footer template that stays
+disclosing (never off) but matches the project's format.
+
+## Decisions (do not re-ask)
+- Fork-only work; contribute upstream only if something is unusually good (Logan, 2026-10-29).
+- No builds/tests on this laptop while the office has jobs running: it is also the build host (Logan, 2026-10-30).
+- Logan starts the office himself; Claude sessions don't (re)start it (2026-10-30).
+- Auto-updates stay off on a source build (the updater would replace it with the upstream binary).
+- No Opus: Complex bugs model is Sonnet (Logan set it, 2026-10-29).
