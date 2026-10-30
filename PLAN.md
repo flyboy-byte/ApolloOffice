@@ -1,6 +1,6 @@
 # PLAN: flyboy-byte/ApolloOffice (fork)
 
-Status: **Office stopped; non-Docker thread + memory caps on `main` (not yet run on a real job); agents work scoped in `docs/agents.md`** (2026-10-30)
+Status: **Office stopped; PLAN items 1–4, 5 (trailers), 7, 8 (R1 R2 R4), 9 (ao + skill), 3 (cloud, never run on Linode) built; first supervised run pending** (2026-10-30)
 
 Living state doc. Detail for the last session: `HANDOFF.md`. SolidCraft-specific: 
 `~/projects/oss/projects/solidcraft/apollo-office-handoff.md` (local).

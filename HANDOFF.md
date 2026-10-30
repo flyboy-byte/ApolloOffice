@@ -1,63 +1,41 @@
-# HANDOFF: ApolloOffice fork, 2026-10-30 01:30 MDT (replaced each session)
+# HANDOFF: ApolloOffice fork, 2026-10-30 ~14:50 MDT (replaced each session)
 
-Read `PLAN.md` first. This is the detail behind it.
+Read `PLAN.md` first. This is what changed today and what to check on the first supervised run.
 
 ## Verify first
 ```sh
-git -C ~/projects/ApolloOffice status -sb && git -C ~/projects/ApolloOffice log --oneline -5 --all
-ss -ltn | grep 47300; uptime; free -g; df -h /home
-sqlite3 ~/.local/share/apollo-office/office.db "select num,st from jobs where st not in ('drop','done'); select full,mode,hunt,ci from rp; select k,v from kv where k like 'cpu:%'"
+git -C ~/projects/ApolloOffice status -sb && git -C ~/projects/ApolloOffice log --oneline -3   # main == origin/main
+ss -ltn | grep 47300; uptime; free -g; df -h /home        # office was STOPPED all day
+sqlite3 ~/.local/share/apollo-office/office.db "select num,st from jobs where st not in ('drop','done'); select full,ci,env,skip,atr,nogo from rp"
+~/projects/ApolloOffice/tools/ao status                    # needs the office running + ~/.config/apollo-office/token
 ```
 
-## Last raw state (2026-10-30 ~01:15)
-- Office not running (no process, port 47300 free). Load 0.85, 12 G memory free, / 28 G free (92%).
-- Jobs open: #9089 `ci` (fix done 22:31, CI run died), #9001 / #8975 / #9242 `ready` (complex), #9265 waiting. 49 dropped.
-- The dead CI run, at 23:31: `load average: 229.53`, 22 processes under `.../tangency-labs__solidcraft/target/ci/deps/`,
-  307 threads, `timeout -k 10 9000 bash -c cargo xtask ci` 55 min old. Killed with the office ~01:00 (Claude Code
-  low-memory reap of its background task).
-
-## Session timeline (attempts → result)
-| # | Did | Result |
+## Built today (all on `main`, pushed, tests 62 unit + 2 e2e green, release binary rebuilt 14:44)
+| Piece | Where | Proven how |
 | --- | --- | --- |
-| 1 | `/init` → CLAUDE.md | committed on fork main |
-| 2 | Built release, started office as a Claude background task, logged in via API | worked; later reaped for memory (don't do this again) |
-| 3 | Tested Claude Code + Codex via `/api/test` | both "ready" |
-| 4 | Found Codex default model | `gpt-6.1-sol` (ApolloOffice passes `--ignore-user-config`, so ~/.codex/config.toml is ignored) |
-| 5 | Forked, remotes `origin`=fork, `upstream`, `aj` | done |
-| 6 | Cherry-picked AJMakesStuff usage meter (`src/usage.rs`, `/api/usage`) | works: Claude weekly 60% used, Codex 1% (10-29 ~22:45) |
-| 7 | Ran `cargo test` + a test office on :47311 while the real office ran CI | made the overload worse; Logan stopped further builds |
-| 8 | Scoped cloud hosts + dead-man switch, and the manager | `docs/cloud-hosts.md`, `docs/manager.md` |
-| 9 | Diagnosed overload | no caps outside Docker (`jobs()`), and SolidCraft's xtask runs every test binary at once unless `SOLIDCRAFT_TEST_JOBS` |
-| 10 | DB edits: `cpu:local=11`, SolidCraft ci → `SOLIDCRAFT_TEST_JOBS=2 cargo xtask ci` | applied, backup `office.db.bak-2026-10-30` |
-| 11 | `src/sh.rs` caps for non-Docker | committed on local branch `raw-caps`, not built (Logan stopped the build) |
-| 12 | SolidCraft handoff + OUTBOX + direct message to session `solidcraft-42` | delivered |
+| Upstream 0.8.2 merged | merge `90ff024` | tests |
+| Non-Docker: thread caps, systemd memory/CPU scope per script, OOM → drop with reason | `sh.rs`, `pipe.rs` | tests; scope + `Result=oom-kill` probed on this laptop |
+| Wait before CI while load > cores or < 3 GB free | `pipe::calm` | unit test |
+| Repo fields `env`, `skip`, `atr` (trailers), `nogo` (off-limits paths) + fresh-label check | `db.rs`, `web.rs`, `ui/p.js`, `pipe.rs`, `wk.rs` | unit tests |
+| Repo notes + job brief as worker skills; triage kept for every worker; Reviewer checks rules | `know.rs`, `ai.rs`, `wk.rs`, `prompts/vet.md` | probe calls (Skill + mcp allow-list), tests |
+| Curator adds lessons after jobs | `know::curate` | compiles, not run |
+| Usage-aware model choice | `budget.rs`, `App::md` | unit tests |
+| Focus/point + `/v1/state` + `ao` CLI + `apollo-office` skill | `focus.rs`, `tools/ao`, `tools/skill/` → `~/.claude/skills/apollo-office` | scratch office on :47391 |
+| Cloud: compose/up.sh/image workflow, Linode rent with guards + dead-man L1/L2/L3/L4 | `cloud/`, `cloud.rs` | guard via scratch office, reaper via fake API; never real Linode |
 
-## Hard-won facts
-- `RUST_TEST_THREADS` set by the office overrides SolidCraft xtask's per-binary split: with `SOLIDCRAFT_TEST_JOBS=2` and
-  cpu 11 → 2 binaries × 11 threads. Lower the machine CPU setting (~6) on this 14 G laptop.
-- Lanes only call `sh::ensure` for Docker machines at startup; a non-Docker machine gets `cpu:<id>` only when saved through
-  `/api/host`. That is why `cpu:local` was set by hand.
-- Login for API work: `apollo-office login-link`, POST it with an `origin` header, keep the cookie; every POST needs
-  `origin` + `x-ao: 1`.
-- "big" in settings = the Fixer card's "Complex bugs" model (used for Repro + Fixer when Vet marks complex).
-- Approve-state jobs keep their work on the build host; Submit bundles from there (`src/pipe.rs:1163`).
+Office data changed today (backups `office.db.bak-2026-10-30b`, `-30c`): SolidCraft `ci=cargo xtask ci`,
+`env=SOLIDCRAFT_TEST_JOBS=2`, `skip=kernel-paused`, `atr=Co-Authored-By: Claude Code <noreply@anthropic.com>`;
+alternates `codex:gpt-6.1-sol` for Scout/Guard/Vet/Repro. Notes: `~/.local/share/apollo-office/know/tangency-labs__solidcraft/SKILL.md`.
 
-## 2026-10-30 morning
-- `raw-caps` rebased, tests green (54 + 2), fast-forwarded into `main` (7d656e6); release built 07:31 (41 s). Branch can go.
-- Scoped the rest in `docs/non-docker.md`. Verified the systemd user scope can cap memory/CPU here.
+## First supervised run (Logan starts the office from his own terminal)
+1. In the UI: drop #9089 (kernel-paused), #9001 and #9265 (closed upstream), #8975 (area:kernel). #9242 is fine only as
+   "clear error for an unsupported zip". Consider `area:kernel` in skip labels and `crates/kernel/` in off-limits paths.
+2. Settings → API: create a token, save it to `~/.config/apollo-office/token` (chmod 600) for `ao`.
+3. Point it with a brief: from the SolidCraft session, the `apollo-office` skill → `ao point tangency-labs/solidcraft#N --brief f.md --only`.
+4. Watch for: "checking the machine's limits" at start; "waiting before CI: machine busy"; `→ Skill` lines in the job log
+   (workers loading `job`/`repo`); the commit trailer; `[oom …]` if CI outgrows 10.5 G; Curator lesson after the job ends.
 
-## Before the first supervised run (checked 2026-10-30 ~09:00 with gh)
-None of the 5 open office jobs is a good one to run:
-| Job | Now | Why not |
-| --- | --- | --- |
-| #9089 STEP surrogates | `ci` (will rerun the 2.5 h CI on start) | issue now labeled `kernel-paused`; fix is in `crates/kernel` |
-| #9001, #9265 | `ready` | issues CLOSED upstream (both had `in progress`: someone else did them) |
-| #8975 COMBINE failed | `ready` | `area:kernel` (booleans), not a crash |
-| #9242 .f3d/.f3z | `ready` | OK only as "clear error for an unsupported zip" (Fusion import is #2346 and needs Fusion-made test files, which the ground rules forbid) |
-Suggest: drop #9089, #9001, #9265, #8975 in the UI before starting (#9242 is fine, narrowly), and add `area:kernel` to SolidCraft's skip labels.
-
-## Next steps
-1. ~~1b/1c, env/skip/trailer fields, R1 knowledge skill~~ built and pushed 2026-10-30 (see PLAN).
-2. Supervised run: watch the scope cap, the busy wait, `→ Skill` in the log, and the trailer on the commit.
-3. Then R4 checks, R2 Curator, usage-aware picks (PLAN 7–8).
-3. Logan decides whether the office keeps targeting SolidCraft (rule conflicts, see the oss handoff).
+## Open / not built
+- Approval-state work is lost when a cloud box goes (cloud-hosts.md problem 1). No UI for alternates, `cloud.*` settings.
+- `docker compose` plugin missing on this laptop (`sudo pacman -S docker-compose`) to dry-run `cloud/up.sh`.
+- Mobile/dashboard (PLAN 10) deliberately not built.
