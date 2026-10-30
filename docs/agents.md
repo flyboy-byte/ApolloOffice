@@ -61,6 +61,13 @@ VERIFIED 2026-10-30: a worker started exactly like the office starts them (`--se
 but with `--tools Skill --allowedTools Skill` and a `.claude/skills/<name>/SKILL.md` in its working directory found and used
 the skill (scratch probe, Haiku, one call). So native skills are a working delivery channel; see `docs/skills.md` B2.
 
+**R1 first slice BUILT 2026-10-30** (`src/know.rs`): `<data>/know/<owner__repo>/SKILL.md` (+ other `.md` beside it) reaches
+Vet, Repro, Fixer and Reviewer. Claude workers get it as a native project skill in a throwaway working dir (`--tools Skill`,
+`--allowedTools mcp__office,Skill`, both VERIFIED with probe calls); Codex/API workers get the body inlined (≤ 6 k chars).
+Skill loads show up in the job log as `→ Skill …`. No file = upstream behavior. SolidCraft's file is seeded by hand; the
+Curator seed (below) is not built. Finding while seeding: **SolidCraft ships its own `AGENTS.md` + 17 repo skills**, so its
+brief points workers at those instead of copying them.
+
 ### Routes (Logan doesn't know which yet; pick-any-order, recommendation last)
 - **R1. A knowledge base per repo, owned by the office.** `<data>/know/<owner__repo>/`:
   - `BRIEF.md`: how to build and test (the narrow command and the full one, how long each takes), layout, crates, env

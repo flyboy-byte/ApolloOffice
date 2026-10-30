@@ -169,6 +169,11 @@ pub async fn ask1(a: &Ax, mut o: Ask) -> R<(String, Value)> {
         r.w = o.w.to_string();
         r.md = o.md.clone();
     }
+    if crate::prov::parse(&o.md).0 != "cc" {
+        if let Some(f) = crate::know::file(a, o.job, o.w) {
+            o.p.push_str(&crate::know::inline(&f));
+        }
+    }
     match crate::prov::parse(&o.md).0 {
         "cc" => cc(a, o).await,
         "codex" => codex(a, o).await,
@@ -217,15 +222,21 @@ async fn cc(a: &Ax, o: Ask) -> R<(String, Value)> {
     }
     let mut tk = String::new();
     let mut mf = None;
+    // Fork: the repo's notes as a project skill in a throwaway working directory (know.rs).
+    let kd = crate::know::file(a, o.job, o.w).and_then(|f| crate::know::stage(a, &f));
+    let sk = if kd.is_some() { "Skill" } else { "" };
     if let Some(rn) = &o.rn {
         let (t, tf) = reg(a, rn);
         tk = t;
         let f = a.dd.join("run").join(format!("{tk}.json"));
         let _ = std::fs::write(&f, json!({"mcpServers": {"office": {"type": "stdio", "command": a.me.display().to_string(), "args": ["mcp", a.port.to_string(), format!("@{}", tf.display())]}}}).to_string());
-        av.extend(["--mcp-config".into(), f.display().to_string(), "--tools".into(), "".into(), "--allowedTools".into(), "mcp__office".into()]);
+        av.extend(["--mcp-config".into(), f.display().to_string(), "--tools".into(), sk.into(), "--allowedTools".into(), if kd.is_some() { "mcp__office,Skill" } else { "mcp__office" }.into()]);
         mf = Some((f, tf));
     } else {
-        av.extend(["--tools".into(), "".into()]);
+        av.extend(["--tools".into(), sk.into()]);
+        if kd.is_some() {
+            av.extend(["--allowedTools".into(), "Skill".into()]);
+        }
     }
     a.st(o.w, "work", o.job, "");
     let txt = Mutex::new(String::new());
@@ -275,7 +286,10 @@ async fn cc(a: &Ax, o: Ask) -> R<(String, Value)> {
             return Err(e);
         }
     }
-    let r = run(&tool("claude"), &av, Rq { i: Some(o.p.clone()), t: o.t, env, rm, cwd: Some(e0), ln: Some(&ln), keep: false, strip_provider_secrets: crate::routing::enabled(a) }).await;
+    let r = run(&tool("claude"), &av, Rq { i: Some(o.p.clone()), t: o.t, env, rm, cwd: Some(kd.clone().unwrap_or(e0)), ln: Some(&ln), keep: false, strip_provider_secrets: crate::routing::enabled(a) }).await;
+    if let Some(d) = &kd {
+        let _ = std::fs::remove_dir_all(d);
+    }
     if !tk.is_empty() {
         a.runs.lock().unwrap().remove(&tk);
     }

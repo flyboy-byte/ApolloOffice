@@ -37,6 +37,9 @@ build order); the lines below are the summary.
   (Claude Code reaps those under memory pressure).
 
 ### 2. Efficiency (scoped in `docs/non-docker.md` 2a–2c)
+- ~~c (load gate), d (repo test env), 2c (skip labels)~~ DONE 2026-10-30 (busy-machine wait before CI; repo fields `env`,
+  `skip`); plus repo field `atr` (commit trailers, item 5). SolidCraft set: `env SOLIDCRAFT_TEST_JOBS=2`, `skip kernel-paused`,
+  `atr Co-Authored-By: Claude Code <noreply@anthropic.com>` (DB backup `office.db.bak-2026-10-30b`).
 - Full repo CI per job is the cost (2.5 h on SolidCraft). Idea: run the affected crate's tests first (fast proof), full CI
   only before submit, or on a rented box (item 3).
 - Its own clone + `target/` per repo (24 G for SolidCraft) on a disk at 92%. Disk guard exists (`pipe::guard`) but is
@@ -68,6 +71,8 @@ was taken (2026-10-29). Cherry-pick any of these if wanted; the others forks hav
 Logan wants the office aware of plan usage when it picks models (2026-10-30). Scoped in `docs/agents.md` item 7.
 
 ### 8. Knowledge, context and efficiency of every agent
+- R1 first slice BUILT 2026-10-30: per-repo knowledge skill (`src/know.rs`); SolidCraft's at
+  `~/.local/share/apollo-office/know/tangency-labs__solidcraft/SKILL.md` (Logan can edit it).
 Not mainly token trimming (Logan, 2026-10-30): workers should know the repo's docs, history and rules and follow the
 skills they're given. Routes R1–R6 in `docs/agents.md` item 8 (recommend: per-repo knowledge base + Curator + checked
 adherence, through native skills); token hygiene is 8b.
@@ -85,6 +90,8 @@ phase 1.5.
 - None open. (Codex vs Claude split → item 7.)
 
 ## Decisions (do not re-ask)
+- Upstream probably leaves these out on purpose; the fork keeps every addition behind a setting whose empty value
+  behaves exactly like upstream (Logan, 2026-10-30).
 - Fork-only work; contribute upstream only if something is unusually good (Logan, 2026-10-29).
 - No builds/tests on this laptop while the office has jobs running: it is also the build host (Logan, 2026-10-30).
 - Logan starts the office himself; Claude sessions don't (re)start it (2026-10-30).

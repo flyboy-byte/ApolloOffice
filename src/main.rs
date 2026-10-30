@@ -2,6 +2,7 @@ mod ai;
 mod app;
 mod db;
 mod gh;
+mod know;
 mod goog;
 mod mcp;
 mod net;
