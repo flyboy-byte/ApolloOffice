@@ -46,7 +46,18 @@ sqlite3 ~/.local/share/apollo-office/office.db "select num,st from jobs where st
 - `raw-caps` rebased, tests green (54 + 2), fast-forwarded into `main` (7d656e6); release built 07:31 (41 s). Branch can go.
 - Scoped the rest in `docs/non-docker.md`. Verified the systemd user scope can cap memory/CPU here.
 
+## Before the first supervised run (checked 2026-10-30 ~09:00 with gh)
+None of the 5 open office jobs is a good one to run:
+| Job | Now | Why not |
+| --- | --- | --- |
+| #9089 STEP surrogates | `ci` (will rerun the 2.5 h CI on start) | issue now labeled `kernel-paused`; fix is in `crates/kernel` |
+| #9001, #9265 | `ready` | issues CLOSED upstream (both had `in progress`: someone else did them) |
+| #8975 COMBINE failed | `ready` | `area:kernel` (booleans), not a crash |
+| #9242 .f3d/.f3z | `ready` | Fusion 360 files: AGENTS.md "never take data from commercial CAD" (INFERRED that it applies) |
+Suggest: drop all five in the UI before starting, and add `area:kernel` to SolidCraft's skip labels.
+
 ## Next steps
-1. Work item 1b/1c (`docs/non-docker.md`, build order step 1) before running SolidCraft CI again.
-2. Push `main` to the fork (Logan's OK).
+1. ~~1b/1c, env/skip/trailer fields, R1 knowledge skill~~ built and pushed 2026-10-30 (see PLAN).
+2. Supervised run: watch the scope cap, the busy wait, `→ Skill` in the log, and the trailer on the commit.
+3. Then R4 checks, R2 Curator, usage-aware picks (PLAN 7–8).
 3. Logan decides whether the office keeps targeting SolidCraft (rule conflicts, see the oss handoff).
