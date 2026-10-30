@@ -53,8 +53,8 @@ None of the 5 open office jobs is a good one to run:
 | #9089 STEP surrogates | `ci` (will rerun the 2.5 h CI on start) | issue now labeled `kernel-paused`; fix is in `crates/kernel` |
 | #9001, #9265 | `ready` | issues CLOSED upstream (both had `in progress`: someone else did them) |
 | #8975 COMBINE failed | `ready` | `area:kernel` (booleans), not a crash |
-| #9242 .f3d/.f3z | `ready` | Fusion 360 files: AGENTS.md "never take data from commercial CAD" (INFERRED that it applies) |
-Suggest: drop all five in the UI before starting, and add `area:kernel` to SolidCraft's skip labels.
+| #9242 .f3d/.f3z | `ready` | OK only as "clear error for an unsupported zip" (Fusion import is #2346 and needs Fusion-made test files, which the ground rules forbid) |
+Suggest: drop #9089, #9001, #9265, #8975 in the UI before starting (#9242 is fine, narrowly), and add `area:kernel` to SolidCraft's skip labels.
 
 ## Next steps
 1. ~~1b/1c, env/skip/trailer fields, R1 knowledge skill~~ built and pushed 2026-10-30 (see PLAN).

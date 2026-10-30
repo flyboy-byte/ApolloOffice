@@ -34,9 +34,22 @@ pub fn stage(a: &App, f: &Path) -> Option<PathBuf> {
 }
 
 /// For workers without native skills (Codex, API models): the notes' body, capped, as a trusted prompt block.
-pub fn inline(f: &Path) -> String {
+pub fn inline(f: &Path, w: &str) -> String {
     let s = std::fs::read_to_string(f).unwrap_or_default();
-    format!("\n\nWhat the office knows about this repository (trusted, kept by the owner):\n{}", crate::sh::head(body(&s).trim(), 6000))
+    format!("\n\nWhat the office knows about this repository (trusted, kept by the owner):\n{}{}", crate::sh::head(body(&s).trim(), 6000), check(w))
+}
+
+/// For Claude Code workers: the skill is there, ask for it explicitly so it isn't skipped.
+pub fn nudge(w: &str) -> String {
+    format!("\n\nThis repository has office notes in the `repo` skill (trusted, kept by the owner). Load it before you start.{}", check(w))
+}
+
+fn check(w: &str) -> &'static str {
+    if w == "reviewer" {
+        "\nCheck the change against the rules in these notes and the repository's own agent instructions they point to; list every violation as an issue."
+    } else {
+        ""
+    }
 }
 
 fn body(s: &str) -> &str {

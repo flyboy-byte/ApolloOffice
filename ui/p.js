@@ -110,6 +110,8 @@
         <div class="hint">Exported before the test command. Lines that aren't NAME=value are ignored.</div>
         <label>Skip labels</label><input type="text" name="skip" value="${esc(r.skip || "")}" placeholder="optional, e.g. kernel-paused, needs-design">
         <div class="hint">Issues with any of these labels are never picked up.</div>
+        <label>Off-limits paths</label><textarea name="nogo" placeholder="optional, one per line, e.g. crates/kernel/">${esc(r.nogo || "")}</textarea>
+        <div class="hint">A fix that changes a file under one of these is dropped before approval.</div>
         <label>Commit trailers</label><textarea name="atr" placeholder="optional, e.g. Co-Authored-By: Claude Code <noreply@anthropic.com>">${esc(r.atr || "")}</textarea>
         <div class="hint">Replaces the per-model trailers for this repository. Must include a Co-Authored-By line, otherwise the per-model ones are used.</div>
         <label>Your rules</label><textarea name="rules" placeholder="optional, e.g. only issues labeled bug; never touch the plugin API">${esc(r.rules)}</textarea>

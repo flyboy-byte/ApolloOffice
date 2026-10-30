@@ -491,6 +491,12 @@ pub fn envx(s: &str) -> String {
     if v.is_empty() { String::new() } else { format!("export {}; ", v.join(" ")) }
 }
 
+/// The first changed file under one of the repo's off-limits path prefixes.
+pub fn nogo(rules: &str, files: &str) -> Option<String> {
+    let ps: Vec<&str> = rules.lines().map(|l| l.trim().trim_start_matches('/')).filter(|l| !l.is_empty()).collect();
+    files.lines().map(str::trim).find(|f| ps.iter().any(|p| f.starts_with(p))).map(String::from)
+}
+
 /// The machine is busy when load exceeds its cores or less than 3 GB is available (`/proc` probe: loadavg, MB, cores).
 pub fn busy(o: &str) -> Option<String> {
     let l: Vec<&str> = o.lines().map(str::trim).collect();
@@ -1013,9 +1019,13 @@ async fn taken(a: &Ax, j: &Job) -> R<String> {
         return Ok(String::new());
     }
     let me = crate::gh::login(a).await;
-    let is = ghj(&["issue", "view", &j.num.to_string(), "-R", &j.repo, "--json", "state,assignees,comments"], 60).await.map_err(X::E)?;
+    let is = ghj(&["issue", "view", &j.num.to_string(), "-R", &j.repo, "--json", "state,assignees,comments,labels"], 60).await.map_err(X::E)?;
     if is["state"] != "OPEN" {
         return Ok("someone was faster: issue is closed".into());
+    }
+    let sk = crate::wk::skips(rp(a, &j.repo)["skip"].as_str().unwrap_or(""));
+    if let Some(l) = is["labels"].as_array().into_iter().flatten().filter_map(|l| l["name"].as_str()).find(|l| sk.contains(&l.to_lowercase())) {
+        return Ok(format!("issue is now labeled {l}, which this repository skips"));
     }
     let oa: Vec<String> = is["assignees"].as_array().cloned().unwrap_or_default().iter().filter_map(|x| x["login"].as_str().map(String::from)).filter(|x| *x != me).collect();
     if !oa.is_empty() {
@@ -1058,6 +1068,13 @@ async fn gate(a: &Ax, j: &mut Job) -> R<()> {
         return Ok(());
     }
     race(a, j, "at the gate").await?;
+    let ng = rp(a, &j.repo)["nogo"].as_str().unwrap_or("").to_string();
+    if !ng.trim().is_empty() {
+        let fs = ok(a, j, &format!("git diff --name-only {}..HEAD", q(&j.s("base"))), 60).await?;
+        if let Some(f) = nogo(&ng, &fs) {
+            return drop(format!("changes {f}, which this repository's settings keep off limits"));
+        }
+    }
     let mn = j.s("mn");
     pull(a, j, &format!("{}{}.git", gitb(), j.repo), &mn, &format!("refs/remotes/origin/{mn}")).await?;
     let nb = ok(a, j, &format!("git rev-parse origin/{}", q(&mn)), 60).await?;
@@ -1894,6 +1911,9 @@ mod t {
         assert_eq!(atr("Signed-off-by: L <l@x>"), None);
         assert_eq!(atr("Co-Authored-By: A <a@x>\nnot a trailer"), None);
         assert_eq!(atr(""), None);
+        assert_eq!(nogo("crates/kernel/\n", "crates/ui/a.rs\ncrates/kernel/src/step_out.rs\n"), Some("crates/kernel/src/step_out.rs".into()));
+        assert_eq!(nogo("/crates/kernel/", "crates/io/x.rs"), None);
+        assert_eq!(nogo("", "anything"), None);
         assert_eq!(tool(o).unwrap().1.as_deref(), Some("cargo-deny"));
         assert_eq!(tool("error: no such command: `nextest`\n[exit 101]").unwrap().1.as_deref(), Some("cargo-nextest"));
         assert_eq!(tool("sh: 1: pnpm: command not found\n[exit 127]").unwrap().1, None);
