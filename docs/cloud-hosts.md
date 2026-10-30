@@ -23,8 +23,47 @@ The controller stays local. The cloud box is only a build host.
   host, so a throwaway box holds no long-lived secret.
 - `sh::ensure` / `dkup` prepare Docker on the host; `pipe::lanes` re-scans machines every 30 s and starts lanes;
   `pipe::lane` exits when its machine row disappears or is switched off (`src/pipe.rs:1676`).
-- Docker Compose is **not** needed: the office manages its own single build container (`dkup`). cloud-init
-  installing Docker is enough.
+- ~~Docker Compose is not needed~~ (reversed 2026-10-30, Logan): it isn't needed to *reach* the box, but it is the right way to
+  *set the box up*. See "Box setup: one compose file" below.
+
+## Box setup: one compose file (Logan, 2026-10-30)
+
+The point: do all the downloading on the server's fast connection, and have a single command that turns a bare box into a
+complete dev environment for the job. The laptop then sends only the small git bundle and the commands.
+
+**One-liner** (cloud-init runs it, and a human can run it by hand on any box):
+```sh
+curl -fsSL https://raw.githubusercontent.com/flyboy-byte/ApolloOffice/main/cloud/compose.yaml -o ao.yaml && \
+  REPO=tangency-labs/solidcraft docker compose -f ao.yaml up -d --wait
+```
+(INFERRED: newer Compose can also take `-f` from a git/OCI URL; the curl form works everywhere.)
+
+**`cloud/compose.yaml`** (new file in the fork):
+- `build`: the office's build container. **Must be named `apollo-office` (`sh::CT`) and use exactly the `im()` tag
+  (`apollo-office-build:<sha of DF>`)** (`CODE`: `dkup` removes and recreates any container whose image differs, and
+  `hxo` runs `docker exec -i apollo-office`). Same volumes as `dkup`: `apollo-office-work:/work`,
+  `apollo-office-cargo:/usr/local/cargo/registry`. Memory/CPU limits from the box size. With that, `ensure` finds it
+  already running and only adjusts the limits.
+- **Image pulled, not built:** a fork workflow builds `DF` and pushes it to `ghcr.io/flyboy-byte/apollo-office-build:<tag>`
+  on every change to `DF`; compose pulls it and tags it as `im()`. On the box that is a pull of ~2–3 GB at datacenter
+  speed instead of a `docker build` (apt + rustup + npm + pip: several minutes, INFERRED). The tag can't be a literal in
+  YAML; the one-liner passes `IMG=<tag>` and the office knows the value (`im()`), so it writes the right one into cloud-init.
+- `prep` (one-shot, per repo): with `REPO=owner/name` and a **public** repo, clones it straight from GitHub (no token),
+  then warms the caches: `cargo fetch`, and for Rust `cargo build --tests` with the repo's test env (`SOLIDCRAFT_TEST_JOBS`
+  etc., `docs/non-docker.md` d); `npm ci` / `pip install` for others. The office's job directory then starts from this
+  clone (it only needs the bundle for the fix commits), so the first CI run doesn't download or build dependencies.
+  Private repos skip the GitHub clone and keep the bundle path, so the token still never reaches the box.
+- Repo extras, optional per repo: a `cloud/<repo>.yaml` override with services a test suite needs (Postgres, Redis,
+  Xvfb are the usual ones). Compose merges it with `-f ao.yaml -f <repo>.yaml`.
+- `sccache` (optional, later): a shared compile cache volume, worth it only if boxes get reused or the cache is shipped to
+  object storage.
+
+**It also works without the office:** `ssh box; docker compose -f ao.yaml exec build bash` gives Logan the same complete
+environment by hand, for 20 minutes of heavy work.
+
+**Order to build:** (1) `cloud/compose.yaml` + the ghcr image workflow, tested on this laptop with `docker compose up`
+(while the office is idle); (2) `prep` for one public Rust repo (SolidCraft); (3) cloud-init using it on the first real
+Linode (needs Logan's go: money).
 
 ## Lifecycle
 
@@ -97,7 +136,7 @@ building). So "shut down" is not a kill; only **delete** stops the meter.
 2. Evacuate approve-state bundles to the controller (problem 1). Also helps when a normal machine goes away.
 3. L3 reaper script, tested by hand against a tagged nanode with a 10-minute expiry.
 4. `cloud.rs` create/delete + spend guards + L1/L2, manual button only.
-5. Prebaked image (problem 3), then try a high-RAM type.
+5. Box setup via `cloud/compose.yaml` (pulled image + `prep` warm caches; solves problem 3), then try a high-RAM type. Steps (1)–(2) of "Box setup" can be built first, on this laptop.
 
 ## Open questions (defaults picked, change if wrong)
 
