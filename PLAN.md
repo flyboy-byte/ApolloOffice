@@ -76,6 +76,11 @@ adherence, through native skills); token hygiene is 8b.
 `docs/skills.md`: `ao status`/`watch` + an `apollo-office` Claude Code skill; a situation block in worker prompts; skill
 packs per repo/role (native Claude skills VERIFIED to work in an office-style worker); lessons the office grows.
 
+### 10. Phone/tablet view and a remote dashboard (low priority)
+`docs/remote.md`: ssh tunnel through the VPS (office stays on 127.0.0.1), responsive pass for phone and tablet, a `/m`
+dashboard. Manager ideas from the parking lot (MCP privilege split, any FOSS agent as manager) are in `docs/manager.md`
+phase 1.5.
+
 ## Open questions for Logan
 - None open. (Codex vs Claude split → item 7.)
 

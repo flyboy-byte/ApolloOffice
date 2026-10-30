@@ -1,6 +1,6 @@
 # Manager: steering the office in plain words (fork-only scope)
 
-Status: **Scoped, not started** (2026-10-29). Fork `flyboy-byte/ApolloOffice`.
+Status: **Scoped, not started** (2026-10-29; phase 1.5 added 2026-10-30 from the parking lot). Fork `flyboy-byte/ApolloOffice`.
 
 ## Goal
 
@@ -27,6 +27,27 @@ A skill (`~/.claude/skills/apollo-office/` or in-repo `tools/ao`) with a small s
 `ao rules <repo> "<text>"`. Login: runs `apollo-office login-link`, posts it, keeps the cookie in the data dir (0600).
 Claude turns the sentence into these calls and reads back the result.
 
+## Phase 1.5: an office MCP server, so any agent can be the manager
+Ideas carried over from Logan's parking lot (`~/projects/parking-lot/ideas/flyboy-byte/`, local repo), added 2026-10-30:
+- **Two servers, two privilege levels** (`local-ai-cluster/docs/MCP.md`): an `office` MCP server with read tools
+  (`state`, `jobs`, `job`, `events`, `usage`, `machines`) and low-risk actions (`focus`, `prio`, `hold`, `pause`); and a
+  separate `office-admin` server (stdio over ssh, never on the network) that only **proposes** risky changes (drop, model
+  or provider changes, repo rules, cloud box create) as a change proposal. A human applies it with a click in the UI or
+  `ao apply <id>`. An agent given only `office` structurally can't reach a mutating tool.
+- **Every decision carries its reason** (`routing_reason` in that design): the focus/pick/model choice the controller makes
+  is returned with why, so the manager (and Logan) can see it. Same rule as `docs/agents.md` item 7.
+- **Controller decides, agent asks:** the agent picks the intent ("only #9001 tonight"); the controller keeps routing and
+  ordering. Same split as the cluster's "caller picks the task type, controller picks the endpoint".
+- **Manager doesn't have to be Claude Code.** Through MCP it can be any FOSS terminal agent from the pool in
+  `terminal-ai-agent/docs/PROJECT_POOL.md` (Pi, OpenCode, Goose, Hermes Agent, gptme…), including on a cheap or local model.
+  The fork already has an OpenCode adapter (`adapters/opencode`). That also makes the manager a test bed for that parked
+  idea, which wants a terminal agent Logan understands end to end.
+- **Efficiency notes from `terminal-ai-agent/docs/TOKEN_EFFICIENCY.md`** §4/§6: small discoverable tool descriptions +
+  on-demand detail; a short handoff before any memory service; index then specific records; invalidate stale facts. These
+  shape the manager's own context (and `docs/agents.md` item 8 R1).
+- The existing hidden `mcp` subcommand (`src/mcp.rs`) is the workers' tool bridge, with a shell; the manager servers are
+  new and have **no shell**.
+
 ## Phase 2: in-app Manager worker (only if Phase 1 gets used a lot)
 
 Chat box in the UI → a `manager` role with a prompt and a tool set that is exactly the office actions above (same
@@ -37,7 +58,8 @@ shape as `mcp.rs` tools; no shell, no repo access). Each action it takes is logg
 
 1. `focus` + `prio` actions and the `pick` change (with a unit test on pick ordering).
 2. `ao` CLI + skill.
-3. Phase 2, later.
+3. Phase 1.5 `office` read/act MCP server, then `office-admin` proposals.
+4. Phase 2, later.
 
 Builds and tests on this laptop wait until the office has no running jobs (it is also the build host).
 
