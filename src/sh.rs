@@ -560,6 +560,12 @@ mod t {
         let r = run(&bash(), &["-c".into(), "printf a >&2; printf '€%.0s' {1..200000} >&2".into()], Rq { t: 30, ..Default::default() }).await;
         assert!(r.e.len() <= MAXO && r.e.ends_with('€'));
     }
+    #[test]
+    fn cloud_dockerfile_matches() {
+        // Fork: cloud/Dockerfile is what cloud/up.sh and the image workflow build; it must stay identical to DF.
+        assert_eq!(include_str!("../cloud/Dockerfile"), DF, "regenerate cloud/Dockerfile from sh::DF");
+    }
+
     #[tokio::test]
     async fn pilot_streams_large_scripts_without_exec_argument_limits() {
         let db=crate::db::Db::mem();

@@ -1,0 +1,26 @@
+# Fork: publish the office's build image so cloud boxes pull it instead of building it (docs/cloud-hosts.md).
+# Manual only: run it from the Actions tab after cloud/Dockerfile changes.
+name: build image
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: write
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag (same as sh::im)
+        id: t
+        run: echo "tag=$(sha256sum cloud/Dockerfile | cut -c1-10)" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push
+        run: |
+          img=ghcr.io/${{ github.repository_owner }}/apollo-office-build:${{ steps.t.outputs.tag }}
+          docker build -t "$img" - < cloud/Dockerfile
+          docker push "$img"

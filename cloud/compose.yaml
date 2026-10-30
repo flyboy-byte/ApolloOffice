@@ -1,0 +1,51 @@
+# One command turns a bare box into the office's build environment (fork; docs/cloud-hosts.md "Box setup").
+# Use cloud/up.sh, which pulls the prebuilt image, tags it as the office expects and runs this file.
+#   IMG   the office's image tag, apollo-office-build:<first 10 hex of sha256(cloud/Dockerfile)> (set by up.sh)
+#   REPO  owner/name of a PUBLIC repo to clone and warm up (optional)
+#   PREP  command run in the repo to warm caches (default: cargo fetch for Rust, npm ci / pip install for others)
+#   ENVS  extra NAME=value lines exported before PREP (e.g. SOLIDCRAFT_TEST_JOBS=2)
+# CPU and memory limits: none here; the office sets them with `docker update` when it adopts the container (sh::dkup).
+name: apollo-office
+services:
+  build:
+    image: ${IMG:?run cloud/up.sh, or set IMG to apollo-office-build:<tag>}
+    pull_policy: never
+    # Must match sh::CT: the office runs `docker exec -i apollo-office` and adopts this container in sh::dkup.
+    container_name: apollo-office
+    command: ["sleep", "infinity"]
+    restart: unless-stopped
+    volumes:
+      - work:/work
+      - cargo:/usr/local/cargo/registry
+  prep:
+    image: ${IMG}
+    pull_policy: never
+    restart: "no"
+    environment:
+      REPO: ${REPO:-}
+      PREP: ${PREP:-}
+      ENVS: ${ENVS:-}
+    volumes:
+      - work:/work
+      - cargo:/usr/local/cargo/registry
+    entrypoint:
+      - bash
+      - -ec
+      - |
+        [ -n "$$REPO" ] || { echo "no REPO, nothing to prepare"; exit 0; }
+        d=/work/$$(echo "$$REPO" | sed 's#/#__#')
+        [ -d "$$d/.git" ] || git clone -q --filter=blob:none "https://github.com/$$REPO" "$$d"
+        cd "$$d"
+        while IFS= read -r l; do case "$$l" in [A-Za-z_]*=*) export "$$l";; esac; done <<< "$$ENVS"
+        if [ -n "$$PREP" ]; then bash -c "$$PREP"
+        elif [ -f Cargo.toml ]; then cargo fetch
+        elif [ -f package-lock.json ]; then npm ci
+        elif [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile
+        elif [ -f requirements.txt ]; then pip install -r requirements.txt
+        fi
+        echo "prepared $$REPO in $$d"
+volumes:
+  work:
+    name: apollo-office-work
+  cargo:
+    name: apollo-office-cargo

@@ -28,6 +28,14 @@ The controller stays local. The cloud box is only a build host.
 
 ## Box setup: one compose file (Logan, 2026-10-30)
 
+**BUILT 2026-10-30, not run yet:** `cloud/up.sh` (one-liner), `cloud/compose.yaml` (`build` = container `apollo-office`
+on the `im()` tag, `prep` = clone a public repo into `/work/<owner__repo>` and warm caches), `cloud/Dockerfile` (a test
+keeps it identical to `sh::DF`), `.github/workflows/build-image.yml` (manual only: pushes
+`ghcr.io/flyboy-byte/apollo-office-build:<tag>`; UNKNOWN whether the package needs to be made public for boxes to pull
+it without logging in). Not tested: this laptop has Docker but no compose plugin (`docker compose` missing; Logan:
+`sudo pacman -S docker-compose`). INFERRED: the office reuses the `prep` clone in `/work/<owner__repo>` (public repos are
+fetched from GitHub on the host already, `pipe::pull`); check on the first run.
+
 The point: do all the downloading on the server's fast connection, and have a single command that turns a bare box into a
 complete dev environment for the job. The laptop then sends only the small git bundle and the commands.
 
