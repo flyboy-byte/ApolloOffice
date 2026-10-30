@@ -1,6 +1,6 @@
 # PLAN: flyboy-byte/ApolloOffice (fork)
 
-Status: **Office stopped; fork has usage meter; non-Docker safety is the top problem** (2026-10-30)
+Status: **Office stopped; thread caps on main + release built; memory cap (1b) scoped in `docs/non-docker.md`** (2026-10-30)
 
 Living state doc. Detail for the last session: `HANDOFF.md`. SolidCraft-specific: 
 `~/projects/oss/projects/solidcraft/apollo-office-handoff.md` (local).
@@ -9,7 +9,8 @@ Living state doc. Detail for the last session: `HANDOFF.md`. SolidCraft-specific
 - Fork `flyboy-byte/ApolloOffice`: `main` = upstream `5dbafee` + `CLAUDE.md` + `docs/cloud-hosts.md` + usage meter
   (cherry-picked from `AJMakesStuff`, authorship kept). Pushed 2026-10-29. Tests passed (54 unit + 2 e2e) before the merge
   commit; the merged tree itself was not re-tested.
-- Branch `raw-caps` (local, not pushed): thread caps for non-Docker machines (`src/sh.rs`). **Not built, not tested.**
+- Thread caps for non-Docker machines merged to `main` (7d656e6, 2026-10-30): tests green (54 + 2), release binary built
+  07:31. Not yet run against a real job. `main` not pushed.
 - Office data: `~/.local/share/apollo-office` (backup `office.db.bak-2026-10-30`). One repo: `tangency-labs/solidcraft`,
   approval required, hunt off, test command `SOLIDCRAFT_TEST_JOBS=2 cargo xtask ci`. Machine `local`, **no Docker**, 1 lane.
 - Models: Haiku triage + Repro first try, Sonnet Repro second try / Fixer / Complex bugs (no Opus), Codex `gpt-6.1-sol`
@@ -20,11 +21,12 @@ Living state doc. Detail for the last session: `HANDOFF.md`. SolidCraft-specific
 ### 1. Non-Docker mode must not break the machine (TOP)
 What happened 2026-10-29: one CI run (`cargo xtask ci`, SolidCraft) took load to ~295 on 12 cores, 22 test binaries / 307
 threads, then memory ran out and the office was killed (~2.5 h, no result). Upstream caps threads and priority only in
-Docker mode (`jobs()` in `src/sh.rs`) and has no memory cap outside Docker.
-- a. Thread caps + nice/ionice for non-Docker machines: branch `raw-caps`. Build, test, commit.
+Docker mode (`jobs()` in `src/sh.rs`) and has no memory cap outside Docker. **Full scope: `docs/non-docker.md`** (b–e, 2a–2c,
+build order); the lines below are the summary.
+- ~~a. Thread caps + nice/ionice for non-Docker machines~~ DONE 2026-10-30 (7d656e6, on `main`).
 - b. **Memory and CPU cap without Docker:** on Linux run each host script under
-  `systemd-run --user --scope -p MemoryMax=… -p MemorySwapMax=0 -p CPUQuota=…%` (no root; needs the user manager to
-  delegate memory/cpu controllers: INFERRED, check `cat /sys/fs/cgroup/user.slice/user-$UID.slice/user@$UID.service/cgroup.controllers`).
+  `systemd-run --user --scope -p MemoryMax=… -p MemorySwapMax=0 -p CPUQuota=…%` (no root; VERIFIED 2026-10-30: the user
+  manager delegates `cpu memory pids` here).
   Fallback when unavailable: refuse to start CI unless the user confirms "no limits".
 - c. **Load/memory gate:** don't start a CI step when load > cores or MemAvailable < a floor; kill the step's process group
   when MemAvailable drops below a hard floor, mark it "infra", requeue (not a failed fix).
@@ -32,7 +34,7 @@ Docker mode (`jobs()` in `src/sh.rs`) and has no memory cap outside Docker.
 - e. Run the office itself as a user service (`apollo-office autostart on`), never as a Claude Code background task
   (Claude Code reaps those under memory pressure).
 
-### 2. Efficiency
+### 2. Efficiency (scoped in `docs/non-docker.md` 2a–2c)
 - Full repo CI per job is the cost (2.5 h on SolidCraft). Idea: run the affected crate's tests first (fast proof), full CI
   only before submit, or on a rented box (item 3).
 - Its own clone + `target/` per repo (24 G for SolidCraft) on a disk at 92%. Disk guard exists (`pipe::guard`) but is

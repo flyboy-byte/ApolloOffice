@@ -42,7 +42,11 @@ sqlite3 ~/.local/share/apollo-office/office.db "select num,st from jobs where st
 - "big" in settings = the Fixer card's "Complex bugs" model (used for Repro + Fixer when Vet marks complex).
 - Approve-state jobs keep their work on the build host; Submit bundles from there (`src/pipe.rs:1163`).
 
+## 2026-10-30 morning
+- `raw-caps` rebased, tests green (54 + 2), fast-forwarded into `main` (7d656e6); release built 07:31 (41 s). Branch can go.
+- Scoped the rest in `docs/non-docker.md`. Verified the systemd user scope can cap memory/CPU here.
+
 ## Next steps
-1. When the laptop is idle: `cargo build --release` on `raw-caps`, `cargo test`, merge to main if green.
-2. Work item 1b/1c in PLAN.md (memory cap without Docker, load gate) before running SolidCraft CI again.
+1. Work item 1b/1c (`docs/non-docker.md`, build order step 1) before running SolidCraft CI again.
+2. Push `main` to the fork (Logan's OK).
 3. Logan decides whether the office keeps targeting SolidCraft (rule conflicts, see the oss handoff).
