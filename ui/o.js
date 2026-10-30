@@ -493,6 +493,49 @@
     document.body.classList.toggle("sb", !!S.star);
   };
 
+  const usageLabel = (w) => w.kind === "five_hour" ? "5h" : w.kind === "weekly" ? "wk" : w.kind;
+  const usageReset = (w) => {
+    if (!w.resetAt) return "";
+    const seconds = Math.max(0, Number(w.resetAt) - Date.now() / 1000);
+    if (seconds < 60) return seconds > 0 ? "Reset in <1m" : "Reset due";
+    const minutes = Math.ceil(seconds / 60);
+    const days = Math.floor(minutes / 1440);
+    const hours = Math.floor((minutes % 1440) / 60);
+    if (days) return `Reset in ${days}d ${hours}h`;
+    if (hours) return `Reset in ${hours}h ${minutes % 60}m`;
+    return `Reset in ${minutes}m`;
+  };
+  let usageRows = [];
+  const renderUsage = () => {
+    const el = $("cUsage");
+    if (!el) return;
+    el.hidden = usageRows.length === 0;
+    el.innerHTML = usageRows.map((p) => {
+      const windows = p.windows || [];
+      const values = windows.map((w) => {
+        const reset = usageReset(w);
+        return `${esc(usageLabel(w))} <b>${Math.round(w.remaining)}%</b>${reset ? ` · ${esc(reset)}` : ""}`;
+      }).join(" · ");
+      const title = p.available
+        ? `${p.name}: ${windows.map((w) => `${usageLabel(w)} ${Math.round(w.remaining)}% remaining${w.resetAt ? `, resets ${new Date(w.resetAt * 1000).toLocaleString()}` : ""}`).join("; ")}${p.stale ? `; last successful check ${new Date(p.updatedAt).toLocaleString()}; refresh failed: ${p.message}` : `; checked ${new Date(p.updatedAt).toLocaleTimeString()}`}`
+        : `${p.name}: ${p.message || "usage unavailable"}`;
+      const display = p.available && values ? values : "usage unavailable";
+      return `<span class="chip" title="${esc(title)}">${esc(p.name)} · ${display}${p.stale ? " · stale" : ""}</span>`;
+    }).join("");
+  };
+  const usage = async () => {
+    if (!$("cUsage")) return;
+    try {
+      const data = await get("/api/usage");
+      usageRows = data.providers || [];
+      renderUsage();
+    } catch {}
+  };
+  window.AO.refreshUsage = usage;
+  usage();
+  setInterval(usage, 600000);
+  setInterval(renderUsage, 60000);
+
   let seen = null;
   const nt = (s) => {
     const ap = s.q.filter((j) => j.st === "approve");
