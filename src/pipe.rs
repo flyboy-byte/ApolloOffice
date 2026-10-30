@@ -1665,6 +1665,8 @@ async fn pick(a: &Ax, h: &str) -> Option<i64> {
         )
     };
     c.sort_by(|x, y| rk(x).partial_cmp(&rk(y)).unwrap_or(std::cmp::Ordering::Equal));
+    let (fs, only) = crate::focus::live(a);
+    crate::focus::order(&mut c, &fs, only);
     for j in c {
         let id = j["id"].as_i64().unwrap_or(0);
         let r = j["repo"].as_str().unwrap_or("").to_string();

@@ -169,8 +169,10 @@ pub async fn ask1(a: &Ax, mut o: Ask) -> R<(String, Value)> {
         r.w = o.w.to_string();
         r.md = o.md.clone();
     }
+    let t = crate::know::triage(a, o.job, o.w);
+    o.p.push_str(&t);
     if let Some(f) = crate::know::file(a, o.job, o.w) {
-        let k = if crate::prov::parse(&o.md).0 == "cc" { crate::know::nudge(o.w) } else { crate::know::inline(&f, o.w) };
+        let k = if crate::prov::parse(&o.md).0 == "cc" { crate::know::nudge(&f, o.w) } else { crate::know::inline(&f, o.w) };
         o.p.push_str(&k);
     }
     match crate::prov::parse(&o.md).0 {

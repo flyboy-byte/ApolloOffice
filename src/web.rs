@@ -576,6 +576,33 @@ async fn v1(a: &Ax, m: &Method, p: &str, q: &str, hd: &HeaderMap, b: Body) -> Re
             None => er(StatusCode::NOT_FOUND, "no report with this id"),
         },
         ("GET", "/v1/reports") => js(json!(a.db.all("select id from jobs where json_extract(d,'$.api')=1 order by id desc limit 50", pa![]).iter().filter_map(|x| repst(a, x["id"].as_i64().unwrap_or(0))).collect::<Vec<_>>())),
+        // Fork: point the office at a job with an optional brief, and a compact state (src/focus.rs).
+        ("GET", "/v1/state") => js(crate::focus::state(a)),
+        ("POST", "/v1/focus") => {
+            let Ok(by) = to_bytes(b, 1 << 20).await else { return er(StatusCode::PAYLOAD_TOO_LARGE, "body larger than 1 MB") };
+            let Ok(v) = serde_json::from_slice::<Value>(&by) else { return er(StatusCode::BAD_REQUEST, "body must be JSON") };
+            if v["clear"].as_bool() == Some(true) {
+                crate::focus::clear(a);
+                return js(json!({"ok": true}));
+            }
+            let id = match v["id"].as_i64() {
+                Some(id) => id,
+                None => match rep(a, &v) {
+                    Ok(r) => r["id"].as_i64().unwrap_or(0),
+                    Err((c, e)) => return er(c, &e),
+                },
+            };
+            let Some(mut j) = a.db.jg(id) else { return er(StatusCode::NOT_FOUND, "no job with this id") };
+            if let Some(br) = v["brief"].as_str().filter(|s| !s.trim().is_empty()) {
+                j.d["brief"] = json!(crate::sh::head(br.trim(), 20_000));
+                a.db.jd(&j);
+            }
+            if j.st == "drop" && v["requeue"].as_bool() == Some(true) {
+                a.db.jset(id, &[("st", json!("vet")), ("why", json!("requeued with focus"))]);
+            }
+            crate::focus::add(a, id, v["only"].as_bool().unwrap_or(false));
+            js(json!({"ok": true, "id": id, "st": a.db.jg(id).map(|j| j.st), "brief": j.d["brief"].is_string()}))
+        }
         ("GET", "/v1/repos") => js(json!(a.db.all("select full from rp where on_=1 order by full", pa![]).iter().filter_map(|x| x["full"].as_str().map(String::from)).collect::<Vec<_>>())),
         _ => er(StatusCode::NOT_FOUND, "unknown endpoint"),
     }

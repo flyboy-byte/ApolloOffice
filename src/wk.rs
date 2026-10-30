@@ -266,6 +266,9 @@ async fn vet1(a: &Ax, id: i64) -> R<()> {
     d["va"] = json!(now());
     d["cx"] = json!(if js["cx"] == "complex" || j.s("cx") == "complex" { "complex" } else { "simple" });
     d["hint"] = json!(js["hint"].as_str().unwrap_or(""));
+    // Fork: keep the triage for every later worker (know::triage), not just Vet's one-line hint.
+    d["triage_sum"] = json!(crate::sh::head(js["triage"].as_str().unwrap_or(""), 1500));
+    d["triage"] = json!(crate::sh::head(&cs.iter().map(|c| format!("comment by {} ({})\n{}", c["author"]["login"].as_str().unwrap_or(""), c["authorAssociation"].as_str().unwrap_or(""), crate::sh::head(c["body"].as_str().unwrap_or(""), 1500))).collect::<Vec<_>>().join("\n\n"), 8000));
     d["body"] = json!(crate::sh::head(i["body"].as_str().unwrap_or(""), 8000));
     d["title"] = json!(i["title"].as_str().unwrap_or(""));
     a.db.jset(id, &[("st", json!("ready")), ("why", json!(js["why"].as_str().unwrap_or(""))), ("d", d), ("title", json!(i["title"].as_str().unwrap_or(&j.title)))]);

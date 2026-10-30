@@ -1,6 +1,7 @@
 mod ai;
 mod app;
 mod db;
+mod focus;
 mod gh;
 mod know;
 mod goog;

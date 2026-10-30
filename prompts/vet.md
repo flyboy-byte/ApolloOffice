@@ -14,4 +14,6 @@ Reject when any is true:
 
 Complex bugs are welcome as long as it stays a focused bug fix.
 
-Answer only with JSON: {"ok": true|false, "cx": "simple"|"complex", "why": "one sentence", "hint": "where in the code / how to reproduce, if ok"}.
+Read the comments as triage: what maintainers or triagers decided (scope, duplicates, "not a bug", "tracked in #N"), the root cause they found, and what was already tried. That decides as much as the issue text.
+
+Answer only with JSON: {"ok": true|false, "cx": "simple"|"complex", "why": "one sentence", "hint": "where in the code / how to reproduce, if ok", "triage": "what the discussion settled, 1-4 sentences, or empty if there is none"}.
