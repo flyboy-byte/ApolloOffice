@@ -31,6 +31,13 @@ tokens counted against the plan for 100 small decisions. The Fixer re-explores w
 reached Fixer, so per-stage numbers are a sample of one.
 
 ## 7. Usage-aware model choice ("self-awareness")
+**BUILT 2026-10-30** (`src/budget.rs`, hooked into `App::md`): one alternate per role in settings `md["<role>.alt"]`
+(no UI yet; edit the `set` row or add UI later). Thresholds by weekly use: triage 70 %, Repro/Reviewer 85 %, Fixer 95 %;
+any 5-hour window ≥ 90 % counts as over. Switches are logged on the role ("using X instead of Y: Claude weekly at 72 %").
+A 10-min loop stores `kv usage:last` only when some alternate is set. Not built: holding a role until reset when both
+plans are out, a list longer than one alternate. Logan's office: Scout/Guard/Vet/Repro have `codex:gpt-6.1-sol` as the
+alternate (2026-10-30, DB backup `office.db.bak-2026-10-30c`).
+
 Goal: the office knows how much of each plan is left and routes accordingly, instead of a fixed model per role.
 
 - **Reading:** a background loop calls `usage::read` every 10 min (the header meter already does this on page load) and

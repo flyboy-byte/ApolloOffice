@@ -218,7 +218,7 @@ impl App {
             }
             return crate::routing::FREE[0].into();
         }
-        self.set()["md"][w].as_str().unwrap_or("claude-sonnet-5-5").to_string()
+        crate::budget::adjust(self, w, self.set()["md"][w].as_str().unwrap_or("claude-sonnet-5-5").to_string())
     }
 
     pub fn say(&self, w: &str, m: &str, j: Option<i64>) {

@@ -70,6 +70,7 @@ disclosing (never off) but matches the project's format.
 was taken (2026-10-29). Cherry-pick any of these if wanted; the others forks have nothing unique.
 
 ### 7. Usage-aware model choice per agent
+- BUILT 2026-10-30 (`src/budget.rs`): per-role alternate + thresholds; Codex is the alternate for Scout/Guard/Vet/Repro.
 Logan wants the office aware of plan usage when it picks models (2026-10-30). Scoped in `docs/agents.md` item 7.
 
 ### 8. Knowledge, context and efficiency of every agent
