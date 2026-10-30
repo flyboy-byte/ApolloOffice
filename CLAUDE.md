@@ -10,12 +10,23 @@ turning GitHub issues into verified bug-fix PRs. AGPL-3.0, beta. User-facing doc
 
 `origin` is `flyboy-byte/ApolloOffice`, `upstream` is `Silvertree2010/ApolloOffice`, `aj` is
 `AJMakesStuff/ApolloOffice`. **Read `PLAN.md` first** (state, work items, do-not-re-ask decisions), then
-`HANDOFF.md`. Fork-only work, not planned for upstream:
-- Provider usage meter in the header (`src/usage.rs`, `/api/usage`), cherry-picked from `aj` with authorship kept.
-- Ephemeral cloud build hosts with a dead-man switch: scoped in `docs/cloud-hosts.md` (the state doc for it).
+`HANDOFF.md`. Merge upstream (don't rebase: `main` is published). Fork-only work, not planned for upstream:
 
-Keep `upstream` merges easy: add new modules rather than reshaping `pipe.rs`/`web.rs`. Run with
-auto-updates off (Settings), or the updater replaces a source build with the upstream release binary.
+| Module / file | What | Design doc |
+| --- | --- | --- |
+| `src/usage.rs` | Claude/Codex plan usage in the header (`/api/usage`), from `aj` | – |
+| `src/know.rs` | repo notes (`<data>/know/<owner__repo>/SKILL.md`, `LESSONS.md`), job briefs and issue triage given to workers; Curator loop | `docs/agents.md` 8 |
+| `src/focus.rs` | `/v1/focus` (point at an issue with a brief, `only`), `/v1/state`; focused jobs first in `pipe::pick` | `docs/manager.md` |
+| `src/budget.rs` | usage-aware model choice: `md["<role>.alt"]` + thresholds, hooked in `App::md` | `docs/agents.md` 7 |
+| `src/cloud.rs`, `cloud/` | rented Linode boxes behind spend guards, pinned host keys, dead-man L1–L4; compose box setup | `docs/cloud-hosts.md` |
+| non-Docker safety in `sh.rs`/`pipe.rs` | thread caps, systemd user scope per script (MemoryMax), OOM → drop, busy-machine wait | `docs/non-docker.md` |
+| repo fields `env`, `skip`, `atr`, `nogo` | test env, skip labels, commit trailers, off-limits paths (`db.rs` migration, `web.rs`, `ui/p.js`) | `docs/non-docker.md`, PLAN 5 |
+| `tools/ao`, `tools/skill/apollo-office/` | CLI over the token API; Claude Code skill (linked at `~/.claude/skills/apollo-office`) | `docs/manager.md`, `docs/skills.md` |
+
+Rules for fork code: every addition sits behind a setting or file whose absence behaves exactly like upstream; prefer new
+modules over reshaping `pipe.rs`/`web.rs`; mark fork hunks in upstream files with a `// Fork:` comment. `cloud/Dockerfile`
+must equal `sh::DF` (a test checks it). Run with auto-updates off (Settings), or the updater replaces a source build with
+the upstream release binary. Never build or test while the office has jobs running on this laptop (it is the build host).
 
 ## Commands
 
@@ -28,7 +39,9 @@ cargo test --test e2e public_repo   # one e2e case (public_repo / private_repo)
 python3 -m unittest discover -s quality -p 'test_*.py'            # acceptance-check scripts
 python3 -m unittest discover -s adapters/opencode -p 'test_*.py'  # OpenCode adapter
 cargo run -- --data /tmp/ao-data --port 47301   # run against a throwaway data dir
-cargo run -- --data /tmp/ao-data login-link     # fresh one-time login link
+cargo run -- --data /tmp/ao-data login-link     # fresh one-time login link (POST it with an origin header)
+tools/ao status                                  # fork CLI; token in ~/.config/apollo-office/token (Settings → API)
+python3 cloud/reaper.py                          # L3 dead-man reaper, dry run unless --apply
 ```
 
 CI (`.github/workflows/ci.yml`) runs `cargo test --locked` on Windows and Ubuntu, and the two
