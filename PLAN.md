@@ -117,6 +117,12 @@ Next, on the first supervised runs: compare `select w, avg(tin+tcw+tcr+tout) fro
 the baseline above. If triage or inline costs show up, lower the caps: summary only for the Fixer; notes 6000 → 3000;
 the Curator only for jobs that reached CI.
 
+**Measured 2026-10-30 (first live run):** a `ui-egui` test rebuild (`--profile ci`, `incremental = false`, 266k-line crate) took 8m37s and
+peaked at **9.5 GB** under a 6-CPU quota (more without it); the laptop's cap is 11.4 GB, so Repro hit it on #9860 and gave up. Token use in
+the first 90 minutes: the Scout/Vet/Guard backlog flood (114 issues, ~1.1M tokens on Codex) and a 40-step Repro session
+(575k cached re-reads). Most Vet spend was on `area:kernel` issues, now in SolidCraft's skip labels. Prompt additions are re-read on every
+step of a long session, so the "few percent" estimate above undercounts; still unmeasured. A 16 GB Linode box fits the 9.5 GB peak.
+
 ## Open questions for Logan
 - None open. (Codex vs Claude split → item 7.)
 
