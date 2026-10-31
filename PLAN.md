@@ -1,6 +1,6 @@
 # PLAN: flyboy-byte/ApolloOffice (fork)
 
-Status: **First live run done 2026-10-30 (audit in HANDOFF.md); office runs as a user service, left stopped; OOM stop added; first upstream PR candidate = drop stops a running job** (2026-10-30)
+Status: **Parked 2026-10-31 (Logan: fed up; HANDOFF.md has the day, the CI memory finding and the 3-step resume list). Office stopped, no box rented. Earlier: first live run 2026-10-30, user service, OOM stop added.** (2026-10-31)
 
 Living state doc. Detail for the last session: `HANDOFF.md`. SolidCraft-specific: 
 `~/projects/oss/projects/solidcraft/apollo-office-handoff.md` (local).

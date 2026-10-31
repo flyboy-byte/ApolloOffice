@@ -1,3 +1,31 @@
+# HANDOFF: ApolloOffice fork, parked 2026-10-31 14:35 MDT (replaced each session)
+
+**Parked by Logan's call (fed up after about 16 h without a PR).** Office service stopped, no builds running, nothing rented
+(Linode: 0 instances; `cloud.on` is true, token in `~/.config/apollo-office/env`). Resume only when he asks.
+
+## What 2026-10-31 showed
+- Nothing got past CI. Jobs: #10123 dropped (someone else's PR existed, the check worked); #10079 built and ran, bug not
+  reproduced; #10035 dropped by Repro without building (my build-cost note, since reworded), then by Vet on Codex (my brief
+  told Vet to build; Vet has no tools), then #130 reached Fix (957k tokens) and **CI hit the 11,473 MB cap after 11 min**.
+- ~3.5M tokens in about 16 h, no PR. Repro+Fix ran 350k-960k per job (INFERRED: context re-read each turn).
+- **#10035 was claimed by another contributor (`/claim` 11:44) six minutes after our Repro passed the "taken" check.** The
+  office never claims (no `/claim` comment, no draft PR), which SolidCraft requires.
+- Added and checked in headless Chrome: Settings > Cloud boxes, a header strip per box (cost, Wind down, Stop now), a header that
+  wraps. Never run against a real box.
+
+## Why CI died, and the measurement (MEASURED)
+`cargo xtask ci` (fmt, clippy --workspace --all-targets, wasm check, doc tests, web offline test) is bigger than the targeted
+builds Logan runs by hand. His shell has no memory cap and swap (10 GB); the office's scope sets `MemoryMax` and
+`MemorySwapMax=0`. A probe of `xtask ci` with swap allowed and a 12 GB soft limit reached **11.6 GB at 8 min, swap unused, still
+rising when stopped**. So the cap is only slightly under what CI needs at that point; the final peak is unknown.
+
+## If resumed (in this order, nothing else)
+1. CI cap: raise `memcap` headroom or use `MemoryHigh` below a higher `MemoryMax`, behind a setting (`src/sh.rs` scope()).
+2. Claim an issue when Repro succeeds (`/claim` comment or draft PR) so nobody takes it mid-run.
+3. Point one unclaimed small issue with a brief that names the role it is for (`ao point --only`, Scout held).
+Upstream PR candidates: drop stops a running job; header wrap; claim on repro.
+
+---
 # HANDOFF: ApolloOffice fork, 2026-10-30 ~23:55 MDT (replaced each session)
 
 Read `PLAN.md` first. This file is the audit of 2026-10-30: what was tested on a real job, what wasn't, and what we
