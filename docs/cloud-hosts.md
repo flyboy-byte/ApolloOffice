@@ -3,7 +3,7 @@
 Status: **Built, never run against Linode** (2026-10-30). Nothing has been created; the first real box needs Logan's go.
 
 As built (2026-10-30): `src/cloud.rs`. Off unless settings `cloud.on` and `LINODE_TOKEN` in the office's environment.
-- Guards before every create: allowed types (default `g6-standard-8`), 10..=60 min, 1 box at a time, 4 a day (settings
+- Guards before every create: allowed types (default `g6-standard-6`), 10..=60 min, 1 box at a time, 4 a day (settings
   `cloud.max`, `cloud.max_min`, `cloud.day`, `cloud.types`).
 - Create: `linode/ubuntu24.04`, tags `apollo-office` + `ao-exp-<unix>`, Logan's `~/.ssh/id_ed25519.pub`, a fresh ed25519 host
   key injected by cloud-init and pinned first in `~/.ssh/ao_cloud_known_hosts` (`sshv` reads it for `lin-*` machines

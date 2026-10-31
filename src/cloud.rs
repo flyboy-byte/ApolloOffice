@@ -29,7 +29,7 @@ pub fn lim(a: &App) -> Lim {
         max: c["max"].as_i64().unwrap_or(1),
         max_min: c["max_min"].as_i64().unwrap_or(60),
         day: c["day"].as_i64().unwrap_or(4),
-        types: c["types"].as_array().map(|v| v.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_else(|| vec!["g6-standard-8".into()]),
+        types: c["types"].as_array().map(|v| v.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_else(|| vec!["g6-standard-6".into()]),
     }
 }
 
@@ -247,17 +247,17 @@ mod t {
     use super::*;
 
     fn l() -> Lim {
-        Lim { on: true, max: 1, max_min: 60, day: 4, types: vec!["g6-standard-8".into()] }
+        Lim { on: true, max: 1, max_min: 60, day: 4, types: vec!["g6-standard-6".into()] }
     }
 
     #[test]
     fn guards() {
-        assert!(guard(&l(), 0, 0, 30, "g6-standard-8").is_ok());
-        assert!(guard(&Lim { on: false, ..l() }, 0, 0, 30, "g6-standard-8").unwrap_err().contains("off"));
+        assert!(guard(&l(), 0, 0, 30, "g6-standard-6").is_ok());
+        assert!(guard(&Lim { on: false, ..l() }, 0, 0, 30, "g6-standard-6").unwrap_err().contains("off"));
         assert!(guard(&l(), 0, 0, 30, "g7-premium-64").unwrap_err().contains("allowed"));
-        assert!(guard(&l(), 0, 0, 90, "g6-standard-8").unwrap_err().contains("minutes"));
-        assert!(guard(&l(), 1, 0, 30, "g6-standard-8").unwrap_err().contains("already running"));
-        assert!(guard(&l(), 0, 4, 30, "g6-standard-8").unwrap_err().contains("today"));
+        assert!(guard(&l(), 0, 0, 90, "g6-standard-6").unwrap_err().contains("minutes"));
+        assert!(guard(&l(), 1, 0, 30, "g6-standard-6").unwrap_err().contains("already running"));
+        assert!(guard(&l(), 0, 4, 30, "g6-standard-6").unwrap_err().contains("today"));
     }
 
     #[test]

@@ -609,7 +609,7 @@ async fn v1(a: &Ax, m: &Method, p: &str, q: &str, hd: &HeaderMap, b: Body) -> Re
             let Ok(by) = to_bytes(b, 1 << 16).await else { return er(StatusCode::PAYLOAD_TOO_LARGE, "body too large") };
             let Ok(v) = serde_json::from_slice::<Value>(&by) else { return er(StatusCode::BAD_REQUEST, "body must be JSON") };
             match v["op"].as_str().unwrap_or("") {
-                "rent" => match crate::cloud::rent(a, v["minutes"].as_i64().unwrap_or(30), v["type"].as_str().unwrap_or("g6-standard-8"), v["region"].as_str().unwrap_or("us-west"), v["repo"].as_str().unwrap_or("")).await {
+                "rent" => match crate::cloud::rent(a, v["minutes"].as_i64().unwrap_or(30), v["type"].as_str().unwrap_or("g6-standard-6"), v["region"].as_str().unwrap_or("us-west"), v["repo"].as_str().unwrap_or("")).await {
                     Ok(b) => js(b),
                     Err(e) => er(StatusCode::BAD_REQUEST, &e),
                 },

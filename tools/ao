@@ -88,7 +88,7 @@ def main():
     sp.add_parser("boxes", help="rented cloud build boxes")
     r = sp.add_parser("rent", help="rent a Linode build box (costs money; spend guards apply)")
     r.add_argument("minutes", type=int)
-    r.add_argument("--type", default="g6-standard-8")
+    r.add_argument("--type", default="g6-standard-6")
     r.add_argument("--region", default="us-west")
     r.add_argument("--repo", default="", help="public owner/repo to clone and warm up on the box")
     u = sp.add_parser("unrent", help="drain and delete a rented box now")
