@@ -19,6 +19,12 @@ builds Logan runs by hand. His shell has no memory cap and swap (10 GB); the off
 `MemorySwapMax=0`. A probe of `xtask ci` with swap allowed and a 12 GB soft limit reached **11.6 GB at 8 min, swap unused, still
 rising when stopped**. So the cap is only slightly under what CI needs at that point; the final peak is unknown.
 
+## Logan's correction (2026-10-31, after the above)
+His hand builds are done by Claude too and run CI without trouble, and the full CI does not need to run here at all: the PR's
+GitHub CI runs it. So the real fix is probably not a bigger memory cap but a lighter office CI command: the repo's `ci` field
+(Repos in the panel, now `cargo xtask ci`) is a plain command string. Use a targeted one (fmt check, clippy and tests for the
+changed crate only) and let GitHub run the full gates. Unconfirmed: what exactly his sessions run by hand.
+
 ## If resumed (in this order, nothing else)
 1. CI cap: raise `memcap` headroom or use `MemoryHigh` below a higher `MemoryMax`, behind a setting (`src/sh.rs` scope()).
 2. Claim an issue when Repro succeeds (`/claim` comment or draft PR) so nobody takes it mid-run.
