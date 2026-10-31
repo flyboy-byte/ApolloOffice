@@ -194,6 +194,18 @@ fn fo(a: &Ax, j: &Job) -> &'static str {
     }
 }
 
+// Fork: a worker command the memory cap killed (mcp `sh`) means this machine can't build it; stop instead of retrying with
+// another model, which would hit the same wall.
+fn oomx(a: &Ax, j: &Job) -> R<()> {
+    let k = format!("oom:{}", dir(a, j));
+    let mb = a.db.kg(&k).as_i64();
+    a.db.kd(&k);
+    match mb {
+        Some(mb) => drop(format!("a build ran out of memory on {} (cap {mb} MB). Run it on a bigger machine, then requeue", j.h())),
+        None => Ok(()),
+    }
+}
+
 fn kill(a: &Ax, j: &Job) -> R<()> {
     if a.db.kg(&format!("kill:{}", j.id)).as_bool().unwrap_or(false) {
         return drop("dropped by the owner");
@@ -308,6 +320,7 @@ async fn repro(a: &Ax, j: &mut Job) -> R<()> {
     let p = format!("{p}{}{}", rules(a,j),crate::quality::context(j));
     let ms = if crate::routing::enabled(a) { crate::routing::plan(a) } else if cx(a, j) { vec![a.md("big")] } else { vec![a.md("repro"), a.md("repro2")] };
     let mut reproduction_feedback=String::new();
+    a.db.kd(&format!("oom:{}", dir(a, j)));
     for (attempt, md) in ms.into_iter().enumerate() {
         crate::routing::event(a, Some(j.id), "repro", attempt, &md, &reproduction_feedback);
         a.st("repro", "work", Some(j.id), "");
@@ -321,6 +334,7 @@ async fn repro(a: &Ax, j: &mut Job) -> R<()> {
         o.t = 90 * 60;
         let result = ask(a, o).await;
         x(a, j, "git checkout -q -- . && git clean -fdq", 120).await;
+        oomx(a, j)?;
         let (_, js) = match result {
             Ok(v) => v,
             Err(X::Back(e)) => return Err(X::Back(e)),
@@ -527,7 +541,7 @@ async fn calm(a: &Ax, j: &Job) {
     a.say("ci", &format!("[{}] still busy after 30 min, starting CI anyway", j.h()), Some(j.id));
 }
 
-fn oom(o: &str) -> Option<i64> {
+pub fn oom(o: &str) -> Option<i64> {
     Regex::new(r"\[oom (\d+)MB\]\s*$").unwrap().captures(o).and_then(|m| m[1].parse().ok())
 }
 
@@ -865,6 +879,7 @@ async fn fix(a: &Ax, j: &mut Job, fb0: String, k0: u64) -> R<Value> {
     let rounds = if crate::routing::enabled(a) { plan.len() as u64 } else { RND + 1 };
     for k in k0..rounds {
         kill(a, j)?;
+        oomx(a, j)?;
         a.db.jset(j.id, &[("st", json!("fix"))]);
         a.st("fixer", "work", Some(j.id), "");
         a.say("fixer", &format!("{}fixing {}", if k > 0 { format!("round {}: ", k + 1) } else { String::new() }, j.tag()), Some(j.id));

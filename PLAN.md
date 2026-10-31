@@ -1,6 +1,6 @@
 # PLAN: flyboy-byte/ApolloOffice (fork)
 
-Status: **Office stopped; PLAN items 1–4, 5 (trailers), 7, 8 (R1 R2 R4), 9 (ao + skill), 3 (cloud, never run on Linode) built; first supervised run pending** (2026-10-30)
+Status: **First live run done 2026-10-30 (audit in HANDOFF.md); office runs as a user service, left stopped; OOM stop added; first upstream PR candidate = drop stops a running job** (2026-10-30)
 
 Living state doc. Detail for the last session: `HANDOFF.md`. SolidCraft-specific: 
 `~/projects/oss/projects/solidcraft/apollo-office-handoff.md` (local).
@@ -130,7 +130,7 @@ step of a long session, so the "few percent" estimate above undercounts; still u
 - Upstream probably leaves these out on purpose; the fork keeps every addition behind a setting whose empty value
   behaves exactly like upstream (Logan, 2026-10-30).
 - Not using upstream's `legacy-0.3` branch (a separate older design, no shared history); Netter's view is in memory (Logan, 2026-10-30).
-- Fork-only work; contribute upstream only if something is unusually good (Logan, 2026-10-29).
+- ~~Fork-only work~~ → small upstream PRs are OK once something is working and tested; start small and see if he takes them (Logan, 2026-10-30).
 - No builds/tests on this laptop while the office has jobs running: it is also the build host (Logan, 2026-10-30).
 - Logan starts the office himself; Claude sessions don't (re)start it (2026-10-30).
 - Auto-updates stay off on a source build (the updater would replace it with the upstream binary).

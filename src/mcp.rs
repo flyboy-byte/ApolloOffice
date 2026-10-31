@@ -102,7 +102,12 @@ pub async fn call(a: &Ax, r: &Rn, n: &str, g: &Value) -> Result<String, String> 
             // into a subdirectory. Never source repository activation scripts.
             let env = "if [ -x .venv/bin/python ]; then export VIRTUAL_ENV=\"$PWD/.venv\"; export PATH=\"$PWD/.venv/bin:$PATH\"; fi";
             let o = hx(a, &r.h, &format!("cd \"{d}\" && {{ {env}; to {} bash -c {}\n}} 2>&1; echo \"[exit $?]\"", m * 60, q(&c)), m * 60 + 30).await;
-            let t = o.all();
+            let mut t = o.all();
+            // Fork: the memory cap killed it; record it for pipe::oomx and tell the worker to stop building.
+            if let Some(mb) = crate::pipe::oom(&t) {
+                a.db.ks(&format!("oom:{}", r.dir), &serde_json::json!(mb));
+                t.push_str("\n[This machine's memory cap killed the command. That is a limit of the machine, not a result about the bug: don't build or test again; answer now with what you found, ok=false.]");
+            }
             Ok(if t.len() > 30000 { format!("…{}", crate::sh::last(&t, 30000)) } else { t })
         }
         _ => Err("unknown tool".into()),
