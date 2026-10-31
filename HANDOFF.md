@@ -1,13 +1,17 @@
-# HANDOFF: ApolloOffice fork, parked 2026-10-31 14:35 MDT (replaced each session)
+# HANDOFF: ApolloOffice fork, parked 2026-10-31 15:20 MDT (replaced each session)
 
-**Parked by Logan's call (fed up after about 16 h without a PR).** Office service stopped, no builds running, nothing rented
-(Linode: 0 instances; `cloud.on` is true, token in `~/.config/apollo-office/env`). Resume only when he asks.
+**Parked by Logan's call (2026-10-31; "we'll try it more in depth next week").** Office stopped, no scopes or builds, nothing
+rented (Linode: 0 instances; `cloud.on` true, token in `~/.config/apollo-office/env`). **The work folder was deleted at his
+request** (`~/.local/share/apollo-office/work/`, 3 GB; the first job re-clones it and rebuilds from cold, so the first
+ui-egui build is the slow one again). Kept: `office.db` (backups `.bak-2026-10-31a/b`), `know/` notes, settings. Scout is HELD
+(kv `hold`, so a login start spends nothing until unheld in the panel); no open jobs; focus cleared. The service is still
+enabled at login (`systemctl --user disable apollo-office` to stop that).
 
 ## What 2026-10-31 showed
 - Nothing got past CI. Jobs: #10123 dropped (someone else's PR existed, the check worked); #10079 built and ran, bug not
   reproduced; #10035 dropped by Repro without building (my build-cost note, since reworded), then by Vet on Codex (my brief
   told Vet to build; Vet has no tools), then #130 reached Fix (957k tokens) and **CI hit the 11,473 MB cap after 11 min**.
-- ~3.5M tokens in about 16 h, no PR. Repro+Fix ran 350k-960k per job (INFERRED: context re-read each turn).
+- **7.1M tokens counted in the cost table for 2026-10-31 (cache reads included), no PR.** Repro+Fix ran 350k-960k per job (INFERRED: context re-read each turn).
 - **#10035 was claimed by another contributor (`/claim` 11:44) six minutes after our Repro passed the "taken" check.** The
   office never claims (no `/claim` comment, no draft PR), which SolidCraft requires.
 - Added and checked in headless Chrome: Settings > Cloud boxes, a header strip per box (cost, Wind down, Stop now), a header that
@@ -25,10 +29,18 @@ GitHub CI runs it. So the real fix is probably not a bigger memory cap but a lig
 (Repos in the panel, now `cargo xtask ci`) is a plain command string. Use a targeted one (fmt check, clippy and tests for the
 changed crate only) and let GitHub run the full gates. Unconfirmed: what exactly his sessions run by hand.
 
-## If resumed (in this order, nothing else)
-1. CI cap: raise `memcap` headroom or use `MemoryHigh` below a higher `MemoryMax`, behind a setting (`src/sh.rs` scope()).
-2. Claim an issue when Repro succeeds (`/claim` comment or draft PR) so nobody takes it mid-run.
-3. Point one unclaimed small issue with a brief that names the role it is for (`ao point --only`, Scout held).
+## Done at the end of 2026-10-31
+- Repo `ci` command for SolidCraft is now a light one: fmt check, then clippy and tests only for the crates the fix touched
+  (`git merge-base HEAD origin/main`, `-p solidcraft-<dir>`); GitHub CI runs the full gates. Crate detection tested on the #10035
+  branch; the whole command has NEVER run as a CI step. Backup before the change: `office.db.bak-2026-10-31a`.
+- Job #137 (#10245, unclaimed, brief naming each role) went Vet -> Repro -> Fix in about 35 min (Repro 359k tokens), then was
+  stopped and dropped when parked.
+- Logan's correction: his hand builds are done by Claude too and run CI fine; PR CI can run the full gates.
+
+## If resumed
+1. Unhold Scout only if he wants hunting; otherwise `ao point` one unclaimed small issue with a role-aware brief (Vet: no tools).
+2. Claim an issue when Repro succeeds (`/claim` comment or draft PR) so nobody takes it mid-run: not built.
+3. Watch the first run of the light CI command; if it still hits the cap, raise `memcap` headroom (probe: `xtask ci` 11.6 GB at 8 min).
 Upstream PR candidates: drop stops a running job; header wrap; claim on repro.
 
 ---
