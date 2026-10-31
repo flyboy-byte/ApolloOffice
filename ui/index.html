@@ -39,7 +39,8 @@ body { padding: 12px 14px; display: grid; grid-template-rows: auto auto minmax(0
 a { color: inherit; text-decoration: none; }
 a:hover { text-decoration: underline; }
 .mono { font-family: var(--m); }
-header { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; overflow: hidden; min-width: 0; }
+/* Fork: wrap instead of letting long usage/cloud chips run over the buttons. */
+header { display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; overflow: hidden; min-width: 0; }
 h1 { font: 600 14px/1 var(--m); letter-spacing: .12em; text-transform: uppercase; margin: 0 6px 0 0; white-space: nowrap; }
 .chip { font: 11px/1 var(--m); padding: 5px 8px; border-radius: 99px; background: var(--p); color: var(--t2); border: 1px solid var(--l); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .chip b { color: var(--t1); font-weight: 500; }
@@ -49,6 +50,7 @@ h1 { font: 600 14px/1 var(--m); letter-spacing: .12em; text-transform: uppercase
 .usage { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .usage .chip { flex: none; }
 .usage .chip.stale { border-style: dashed; }
+.usage .chip button { font: inherit; padding: 1px 6px; margin-left: 4px; }
 .sp { flex: 1; }
 button.hc { cursor: pointer; flex: none; display: inline-flex; gap: 5px; align-items: center; }
 button.hc:hover { background: var(--f); }
@@ -233,6 +235,7 @@ pre.df .ad { color: var(--ok); } pre.df .rm { color: var(--bad); } pre.df .hh { 
   <span class="chip" id="cHo"></span>
   <span class="chip" id="cQ"></span>
   <span class="sp"></span>
+  <div id="cCloud" class="usage" aria-label="Rented cloud boxes" hidden></div>
   <div id="cUsage" class="usage" aria-label="Provider usage" aria-live="polite" hidden></div>
   <button id="bCost">Costs</button>
   <button id="bRepos">Repos</button>

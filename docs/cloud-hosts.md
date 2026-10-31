@@ -12,7 +12,12 @@ As built (2026-10-30): `src/cloud.rs`. Off unless settings `cloud.on` and `LINOD
 - `cloud::watch` (L1): 5 min before expiry the machine is switched off (drain); deleted once no job runs on it, or 10 min
   past expiry regardless. L2: every ~10 min, any `apollo-office` box past its tag + 15 min is deleted even if untracked.
 - `cloud/reaper.py` (L3) for the VPS cron, dry run unless `--apply`; tested against a fake API.
-- API `/v1/cloud` and `ao boxes | rent MIN [--type --region --repo] | unrent ID`.
+- API `/v1/cloud` and `ao boxes | rent MIN [--type --region --repo] | unrent ID [--now]`.
+- UI (2026-10-31): Settings → "Cloud boxes" (token found?, renting on/off, types, longest rental, per day, at once, rent button with
+  a second click) and a header strip per box: type, state, minutes up and left, cost so far (hourly price saved at creation ×
+  started hours; INFERRED that Linode rounds up), **Wind down** (no new work, deleted when its job ends, at most 10 min) and
+  **Stop now** (deleted by the next 30 s watch tick, even mid-job). Checked in headless Chrome on a scratch office with a fake
+  box row; never against a real box.
 - NOT built: problem 1 below (a job waiting for approval loses its work when its box goes; the office logs it). Not
   verified: `docker-compose-v2` package name on Ubuntu 24.04, Linode `metadata.user_data` on that image, IPv4 field
   shape (all INFERRED from docs, check on the first box). L3 isn't deployed (needs the VPS + a Linode token there). Fork `flyboy-byte/ApolloOffice`; not planned for upstream

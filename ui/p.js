@@ -264,7 +264,7 @@
   const settings = async () => {
     cfg = await get("/api/cfg");
     show("Settings", "set");
-    const s = cfg.set, u = cfg.upd || {};
+    const s = cfg.set, u = cfg.upd || {}, cl = cfg.cloud || {};
     const keys = cfg.prov.filter((p) => p.key);
     const ol = cfg.prov.find((p) => p.id === "ollama");
     const ust = u.ready && u.ready !== A.S?.v ? `Update ${esc(u.ready)} is downloaded.` : u.err ? `Last check: ${esc(u.err)}` : u.latest ? `Latest release: ${esc(u.latest)}` : "Not checked yet.";
@@ -306,6 +306,17 @@
   -d '{"repo":"owner/name","title":"Crash on empty input","body":"Steps and what happens","logs":"stack trace","src":"Sentry"}'</pre>
         <div class="hint">Or send <code>{"repo":"owner/name","issue":42}</code> to have an existing issue picked up now. <code>GET /v1/report?id=…</code> returns the state and the PR link. Reports go through Guard and Vet like issues; only this computer can reach the API.</div>
         <div class="acts"><button type="button" id="an">${cfg.api.on ? "Replace token" : "Create token"}</button>${cfg.api.on ? `<button type="button" class="dng" id="ao">Revoke</button>` : ""}</div></div></div>
+      <div class="sec"><h4>Cloud boxes</h4><div class="box"><div class="fm" style="margin:0">
+        <label>Linode token</label><div class="ck"><span>${cl.token ? `<b class="ok2">Found</b> in the office's environment.` : "Not found. Put <code>LINODE_TOKEN=…</code> in <code>~/.config/apollo-office/env</code> (chmod 600) and restart the service."}</span></div>
+        <label>Renting</label>${tg("cloud_on", cl.on, "allow renting build boxes (costs money)")}
+        <label>Allowed types</label><input type="text" name="ctypes" value="${esc((cl.types || []).join(", "))}"><div class="hint">Linode type ids, comma separated. g6-standard-6 is 6 CPU / 16 GB at about $0.144 an hour; Linode bills from creation until deletion.</div>
+        <label>Longest rental</label><input type="number" name="cmaxmin" min="10" max="240" value="${cl.max_min}"><div class="hint">Minutes. The box powers itself off 15 minutes after its time and the office deletes it.</div>
+        <label>Boxes per day</label><input type="number" name="cday" min="0" max="24" value="${cl.day}"><div class="hint">${cl.today || 0} rented today.</div>
+        <label>At once</label><input type="number" name="cmax" min="1" max="3" value="${cl.max}">
+      </div>
+      ${(cl.boxes || []).map((b) => `<div class="ck" style="margin-top:8px"><span style="flex:1"><b>${esc(b.hid)}</b> ${esc(b.ty)} ${esc(b.ip)} · ${esc(b.st)} · ${Math.round((b.exp * 1000 - Date.now()) / 60000)} min left${b.repo ? " · " + esc(b.repo) : ""}</span><button type="button" data-unrent="${b.lid}">Wind down</button><button type="button" class="dng" data-unrent="${b.lid}" data-now="1">Stop now</button></div>`).join("")}
+      ${cl.on && cl.token ? `<div class="acts" style="align-items:center"><input type="number" id="crm" min="10" max="${cl.max_min}" value="${Math.min(60, cl.max_min)}" style="width:5em"> min of <select id="crt" style="width:auto">${(cl.types || []).map((t) => `<option>${esc(t)}</option>`).join("")}</select> for <select id="crr" style="width:auto"><option value="">no repo</option>${cfg.repos.filter((r) => r.on_).map((r) => `<option>${esc(r.full)}</option>`).join("")}</select><button type="button" id="crent">Rent a box</button></div>` : `<div class="hint" style="margin-top:6px">Save with renting allowed and a token found to rent a box here.</div>`}
+      <div class="msg" id="cm"></div></div></div>
       <div class="sec"><h4>Error trackers</h4><div class="box">
         <div class="ck">${cfg.hook.on ? `<b class="ok2">On</b> link created ${new Date(cfg.hook.t0).toLocaleDateString()}` : "Off. Create a link to let Sentry or GlitchTip send errors as reports."}</div>
         <div id="htk" hidden><input type="text" readonly id="htv" style="margin-top:8px"><div class="hint" style="margin-top:6px">Copy it now, the key is shown only once. Replace owner/name with the repository.</div></div>
@@ -377,7 +388,7 @@
         const r = await post({ id: e.dataset.key, key: e.value.trim() }, "/api/prov");
         if (r.error) { $("sm").className = "msg bad2"; $("sm").textContent = r.error; return; }
       }
-      const r = await post({ wh: { on: v.whon, from: v.whf, to: v.wht }, hunters: v.hunters, tokday: v.tokday, ntfy: v.ntfy, discord: v.discord, auto: v.auto, updates: v.updates, ollama: v.ollama, octx: v.octx, cckc: v.cckc, test }, "/api/set");
+      const r = await post({ wh: { on: v.whon, from: v.whf, to: v.wht }, hunters: v.hunters, tokday: v.tokday, ntfy: v.ntfy, discord: v.discord, auto: v.auto, updates: v.updates, ollama: v.ollama, octx: v.octx, cckc: v.cckc, cloud: { on: v.cloud_on, types: v.ctypes, max_min: v.cmaxmin, day: v.cday, max: v.cmax }, test }, "/api/set");
       if (r.error) { $("sm").className = "msg bad2"; $("sm").textContent = r.error; return; }
       await settings();
       A.refreshUsage?.();
@@ -404,6 +415,21 @@
     };
     if ($("ho")) $("ho").onclick = async (e) => { if (e.target.dataset.sure !== "1") { e.target.dataset.sure = "1"; e.target.textContent = "Click again to revoke"; return; } await post({ op: "off" }, "/api/hooktok"); settings(); };
     if ($("ao")) $("ao").onclick = async (e) => { if (e.target.dataset.sure !== "1") { e.target.dataset.sure = "1"; e.target.textContent = "Click again to revoke"; return; } await post({ op: "off" }, "/api/apitok"); settings(); };
+    if ($("crent")) $("crent").onclick = async (e) => {
+      const m = Number($("crm").value), t = $("crt").value;
+      if (e.target.dataset.sure !== "1") { e.target.dataset.sure = "1"; e.target.textContent = `Click again: rent ${t} for ${m} min`; return; }
+      busy(e.target, true, "Renting…");
+      const r = await post({ op: "rent", minutes: m, type: t, repo: $("crr").value }, "/api/cloud");
+      if (r.error) { busy(e.target, false, "Rent a box"); e.target.dataset.sure = ""; $("cm").className = "msg bad2"; $("cm").textContent = r.error; return; }
+      await settings();
+      $("cm").className = "msg"; $("cm").textContent = "Rented. Setup takes a few minutes; it shows up as a machine when ready.";
+    };
+    for (const b of B.querySelectorAll("[data-unrent]")) b.onclick = async () => {
+      if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "Click again to delete it"; return; }
+      await post({ op: b.dataset.now ? "stop" : "kill", id: Number(b.dataset.unrent) }, "/api/cloud");
+      await settings();
+      $("cm").className = "msg"; $("cm").textContent = b.dataset.now ? "Stopping: deleted within about 30 seconds." : "Winding down: deleted when its current job ends (at most 10 minutes).";
+    };
     $("uc").onclick = async (e) => { busy(e.target, true, "Checking…"); const r = await post({ op: "check" }, "/api/update"); await settings(); $("um").textContent = r.ok ? (r.r.new ? `Update ${r.r.latest} downloaded.` : `Up to date (latest ${r.r.latest}).`) : r.m; };
     if ($("ua")) $("ua").onclick = async (e) => { busy(e.target, true, "Restarting…"); await post({ op: "apply" }, "/api/update"); setTimeout(() => location.reload(), 6000); };
   };

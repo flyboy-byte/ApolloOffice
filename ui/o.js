@@ -531,6 +531,29 @@
       renderUsage();
     } catch {}
   };
+  // Fork: rented Linode boxes (src/cloud.rs): uptime, time left, cost so far, wind down / stop now.
+  const cloud = async () => {
+    const el = $("cCloud");
+    if (!el) return;
+    let c;
+    try { c = await get("/api/cloud"); } catch { return; }
+    const bx = c.boxes || [];
+    el.hidden = bx.length === 0;
+    const now = Date.now();
+    el.innerHTML = bx.map((b) => {
+      const up = Math.max(0, Math.round((now - b.t0) / 60000)), left = Math.round((b.exp * 1000 - now) / 60000);
+      const cost = b.px != null ? "$" + (Math.max(1, Math.ceil(up / 60)) * b.px).toFixed(2) : "cost ?";
+      const tip = `${b.hid} ${b.ty} in ${b.region} (${b.ip})${b.repo ? " for " + b.repo : ""}. Up ${up} min, ${left > 0 ? left + " min left" : "past its time"}. Linode bills each started hour${b.px != null ? " at $" + b.px + "/h" : ""} until the box is deleted.`;
+      return `<span class="chip info" title="${esc(tip)}">☁ ${esc(b.ty)} · ${esc(b.st)} · up ${up}m · ${left > 0 ? left + "m left" : "ending"} · <b>${cost}</b><button data-cw="${b.lid}" title="Stop new work; delete when its job ends (at most 10 min)">Wind down</button><button data-cs="${b.lid}" class="dng" title="Delete within ~30 s, even mid-job">Stop now</button></span>`;
+    }).join("");
+    for (const b of el.querySelectorAll("[data-cw],[data-cs]")) b.onclick = async () => {
+      if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "Sure?"; return; }
+      await post({ op: b.dataset.cs ? "stop" : "kill", id: Number(b.dataset.cs || b.dataset.cw) }, "/api/cloud");
+      cloud();
+    };
+  };
+  cloud();
+  setInterval(cloud, 30000);
   window.AO.refreshUsage = usage;
   usage();
   setInterval(usage, 600000);

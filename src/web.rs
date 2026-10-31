@@ -129,7 +129,7 @@ async fn checks(a: &Ax) -> Value {
 }
 
 fn cfg(a: &Ax) -> Value {
-    json!({"repos": a.db.all("select * from rp order by full", pa![]), "hosts": a.db.all("select * from hs order by id='local' desc, id", pa![]), "set": a.set(), "data": a.dd.display().to_string(), "auto": crate::sys::autostart_on(&a.dd), "prov": crate::prov::status(a), "google": crate::goog::linked(a)["email"], "upd": a.db.kg("upd"), "asset": crate::upd::asset(), "api": {"on": a.db.kg("api")["h"].is_string(), "t0": a.db.kg("api")["t0"], "last": a.db.kg("api")["last"], "port": a.port}, "hook": {"on": a.db.kg("hook")["h"].is_string(), "t0": a.db.kg("hook")["t0"]}})
+    json!({"repos": a.db.all("select * from rp order by full", pa![]), "hosts": a.db.all("select * from hs order by id='local' desc, id", pa![]), "set": a.set(), "data": a.dd.display().to_string(), "auto": crate::sys::autostart_on(&a.dd), "prov": crate::prov::status(a), "google": crate::goog::linked(a)["email"], "upd": a.db.kg("upd"), "asset": crate::upd::asset(), "api": {"on": a.db.kg("api")["h"].is_string(), "t0": a.db.kg("api")["t0"], "last": a.db.kg("api")["last"], "port": a.port}, "hook": {"on": a.db.kg("hook")["h"].is_string(), "t0": a.db.kg("hook")["t0"]}, "cloud": crate::cloud::list(a)})
 }
 
 fn costs(a: &Ax) -> Value {
@@ -232,6 +232,8 @@ fn sets(a: &Ax, b: &Value) {
             }
         }
     }
+    // Fork: Cloud boxes section (src/cloud.rs).
+    crate::cloud::sets(&mut s, b);
     a.db.ks("set", &s);
     a.tick();
     if let Some(w) = b["wh"].as_object() {
@@ -613,11 +615,11 @@ async fn v1(a: &Ax, m: &Method, p: &str, q: &str, hd: &HeaderMap, b: Body) -> Re
                     Ok(b) => js(b),
                     Err(e) => er(StatusCode::BAD_REQUEST, &e),
                 },
-                "kill" => {
-                    crate::cloud::kill(a, v["id"].as_i64().unwrap_or(0));
+                "kill" | "stop" => {
+                    crate::cloud::kill(a, v["id"].as_i64().unwrap_or(0), v["op"] == "stop");
                     js(json!({"ok": true}))
                 }
-                _ => er(StatusCode::BAD_REQUEST, "op must be rent or kill"),
+                _ => er(StatusCode::BAD_REQUEST, "op must be rent, kill or stop"),
             }
         }
         ("GET", "/v1/repos") => js(json!(a.db.all("select full from rp where on_=1 order by full", pa![]).iter().filter_map(|x| x["full"].as_str().map(String::from)).collect::<Vec<_>>())),
@@ -664,6 +666,7 @@ async fn api(a: &Ax, m: &Method, p: &str, q: &str, b: Value) -> Response<Body> {
     let qv = |k: &str| q.split('&').find_map(|x| x.strip_prefix(&format!("{k}="))).unwrap_or("").to_string();
     match (m.as_str(), p) {
         ("GET", "/api/state") => js(state(a)),
+        ("GET", "/api/cloud") => js(crate::cloud::list(a)),
         ("GET", "/api/cfg") => js(cfg(a)),
         ("GET", "/api/check") => js(checks(a).await),
         ("GET", "/api/report") => match repdetail(a,qv("id").parse().unwrap_or(0)) {
@@ -949,6 +952,18 @@ async fn api(a: &Ax, m: &Method, p: &str, q: &str, b: Value) -> Response<Body> {
                 a.db.kd("api");
                 a.say("scout", "API token revoked", None);
                 js(json!({"ok": true}))
+            }
+            _ => er(StatusCode::BAD_REQUEST, "op"),
+        },
+        // Fork: rent or stop a cloud box from the settings page (same as /v1/cloud).
+        ("POST", "/api/cloud") => match b["op"].as_str().unwrap_or("") {
+            "rent" => match crate::cloud::rent(a, b["minutes"].as_i64().unwrap_or(30), b["type"].as_str().unwrap_or("g6-standard-6"), b["region"].as_str().unwrap_or("us-west"), b["repo"].as_str().unwrap_or("")).await {
+                Ok(_) => js(cfg(a)),
+                Err(e) => er(StatusCode::BAD_REQUEST, &e),
+            },
+            "kill" | "stop" => {
+                crate::cloud::kill(a, b["id"].as_i64().unwrap_or(0), b["op"] == "stop");
+                js(cfg(a))
             }
             _ => er(StatusCode::BAD_REQUEST, "op"),
         },

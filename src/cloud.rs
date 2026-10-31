@@ -139,7 +139,12 @@ pub async fn rent(a: &Ax, minutes: i64, ty: &str, region: &str, repo: &str) -> R
     let hid = format!("{PRE}{lid}");
     // Host key pinned before first contact: hpub is "ssh-ed25519 AAAA… ao-box".
     kh_set(&ip, Some(hpub.split_whitespace().take(2).collect::<Vec<_>>().join(" ").as_str()));
-    let b = json!({"lid": lid, "hid": hid, "ip": ip, "exp": e, "ty": ty, "region": region, "repo": repo, "t0": now(), "st": "boot"});
+    // Hourly price for the dashboard's cost estimate; Linode bills every started hour until the box is deleted.
+    let px = match api(a, reqwest::Method::GET, &format!("/linode/types/{ty}"), None).await {
+        Ok(t) => t["price"]["hourly"].as_f64(),
+        Err(_) => None,
+    };
+    let b = json!({"lid": lid, "hid": hid, "ip": ip, "exp": e, "ty": ty, "region": region, "repo": repo, "t0": now(), "st": "boot", "px": px});
     a.db.ks(&format!("cloud:box:{lid}"), &b);
     a.db.ks(&format!("cloud:day:{day}"), &json!(today + 1));
     a.say("ci", &format!("[{hid}] rented {ty} in {region} for {minutes} min ({ip}), waiting for setup"), None);
@@ -159,22 +164,26 @@ async fn up(a: &Ax, lid: i64, hid: &str, ip: &str) {
         if r.o.trim() == "true" {
             a.db.run("insert into hs(id,ssh,dk,ln,ci,gb,raw,on_,t0,no,cpu) values(?,?,1,1,1,100,0,1,?,'',0) on conflict(id) do update set on_=1", pa![hid.to_string(), h.ssh.clone(), now()]);
             let mut b = a.db.kg(&format!("cloud:box:{lid}"));
-            b["st"] = json!("up");
+            if b["st"] == "boot" {
+                b["st"] = json!("up");
+            }
             a.db.ks(&format!("cloud:box:{lid}"), &b);
             a.say("ci", &format!("[{hid}] box ready, lanes start on it"), None);
             return;
         }
     }
     a.say("ci", &format!("[{hid}] box never became ready, deleting it"), None);
-    kill(a, lid);
+    kill(a, lid, true);
 }
 
-/// Ask for a box to go: it drains and is deleted by `watch`.
-pub fn kill(a: &App, lid: i64) {
+/// Ask for a box to go; `watch` deletes it. Wind down (`now` false): stop new work, delete once its job ends (at most 10 min). Stop now: delete at the next
+/// watch tick (~30 s) even mid-job.
+pub fn kill(a: &App, lid: i64, now_: bool) {
     let k = format!("cloud:box:{lid}");
     let mut b = a.db.kg(&k);
     if b.is_object() {
-        b["exp"] = json!(now() / 1000);
+        b["exp"] = json!(now() / 1000 - if now_ { 601 } else { 0 });
+        b["st"] = json!(if now_ { "stopping" } else { "winding down" });
         a.db.ks(&k, &b);
     }
 }
@@ -239,7 +248,32 @@ pub async fn watch(a: Ax) {
 }
 
 pub fn list(a: &App) -> Value {
-    json!({"on": lim(a).on, "token": tok().is_ok(), "boxes": boxes(a)})
+    let l = lim(a);
+    let today = a.db.kg(&format!("cloud:day:{}", chrono::Local::now().format("%Y-%m-%d"))).as_i64().unwrap_or(0);
+    json!({"on": l.on, "token": tok().is_ok(), "boxes": boxes(a), "max": l.max, "max_min": l.max_min, "day": l.day, "types": l.types, "today": today})
+}
+
+/// Settings page: `{"cloud": {"on", "max", "max_min", "day", "types"}}` merged into settings `cloud`.
+pub fn sets(s: &mut Value, b: &Value) {
+    let Some(c) = b["cloud"].as_object() else { return };
+    if !s["cloud"].is_object() {
+        s["cloud"] = json!({});
+    }
+    if let Some(x) = c.get("on").and_then(|x| x.as_bool()) {
+        s["cloud"]["on"] = json!(x);
+    }
+    for (k, lo, hi) in [("max", 1, 3), ("max_min", 10, 240), ("day", 0, 24)] {
+        if let Some(x) = c.get(k).and_then(|x| x.as_i64()) {
+            s["cloud"][k] = json!(x.clamp(lo, hi));
+        }
+    }
+    if let Some(x) = c.get("types").and_then(|x| x.as_str()) {
+        let re = regex::Regex::new(r"^g\d-[a-z0-9-]{1,40}$").unwrap();
+        let t: Vec<&str> = x.split(',').map(str::trim).filter(|t| re.is_match(t)).take(5).collect();
+        if !t.is_empty() {
+            s["cloud"]["types"] = json!(t);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -269,5 +303,17 @@ mod t {
         assert!(u.contains("REPO=tangency-labs/solidcraftrm-rf/ sh"));
         assert_eq!(exp(&json!(["apollo-office", "ao-exp-1793400000"])), Some(1793400000));
         assert_eq!(exp(&json!(["other"])), None);
+    }
+
+    #[test]
+    fn settings_page() {
+        let mut s = json!({"ntfy": "x"});
+        sets(&mut s, &json!({}));
+        assert_eq!(s, json!({"ntfy": "x"}));
+        sets(&mut s, &json!({"cloud": {"on": true, "max": 9, "max_min": 5, "day": 2, "types": "g6-standard-6, ; rm -rf, g6-dedicated-2"}}));
+        assert_eq!(s["cloud"], json!({"on": true, "max": 3, "max_min": 10, "day": 2, "types": ["g6-standard-6", "g6-dedicated-2"]}));
+        sets(&mut s, &json!({"cloud": {"on": false, "types": "nonsense"}}));
+        assert_eq!(s["cloud"]["on"], json!(false));
+        assert_eq!(s["cloud"]["types"], json!(["g6-standard-6", "g6-dedicated-2"]));
     }
 }
